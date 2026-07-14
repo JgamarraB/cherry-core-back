@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: cherry-core-app
+
+  datasource:
+    url: jdbc:mysql://localhost:${DB_PORT:3306}/${DB_NAME:cherry_core}?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=Europe/Madrid
+    username: ${DB_USERNAME:cherrycore}
+    password: ${DB_PASSWORD:cherrycore_dev}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+  endpoint:
+    health:
+      show-details: when-authorized

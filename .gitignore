@@ -1,0 +1,22 @@
+# Eclipse
+.metadata/
+.settings/
+.classpath
+.project
+.factorypath
+.springBeans
+.sts4-cache/
+
+# Maven
+target/
+
+# macOS
+.DS_Store
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Docker
+docker/.env
