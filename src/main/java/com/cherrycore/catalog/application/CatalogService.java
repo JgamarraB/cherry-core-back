@@ -23,6 +23,7 @@ import com.cherrycore.catalog.domain.ApplicationStatus;
 import com.cherrycore.catalog.domain.CatalogErrorCode;
 import com.cherrycore.catalog.domain.PermissionCode;
 import com.cherrycore.shared.application.port.FileStorage;
+import com.cherrycore.shared.application.port.ImageSanitizer;
 import com.cherrycore.shared.domain.error.DomainException;
 import com.cherrycore.shared.domain.id.UuidV7;
 import com.cherrycore.shared.domain.media.ImageType;
@@ -45,11 +46,14 @@ public class CatalogService {
     private final PermissionRepository permissions;
     private final ApplicationLogos logos;
     private final FileStorage storage;
+    private final ImageSanitizer images;
     private final CatalogSettings settings;
     private final Clock clock;
 
     public CatalogService(ApplicationRepository applications, PermissionRepository permissions,
-            ApplicationLogos logos, FileStorage storage, CatalogSettings settings, Clock clock) {
+            ApplicationLogos logos, FileStorage storage, ImageSanitizer images, CatalogSettings settings,
+            Clock clock) {
+        this.images = images;
         this.applications = applications;
         this.permissions = permissions;
         this.logos = logos;
@@ -92,9 +96,11 @@ public class CatalogService {
         }
         ImageType type = ImageType.detect(content)
                 .orElseThrow(() -> new DomainException(CatalogErrorCode.LOGO_INVALID_FORMAT));
+        // Sin metadatos (EXIF, GPS...) y con dimensiones razonables.
+        byte[] clean = images.sanitize(content, type);
         String previousKey = application.logoKey();
         String key = logos.keyFor(application.id(), UuidV7.generate(clock), type);
-        storage.storePublic(key, content, type.contentType());
+        storage.storePublic(key, clean, type.contentType());
         application.changeLogo(key);
         applications.save(application);
         deleteQuietly(previousKey);

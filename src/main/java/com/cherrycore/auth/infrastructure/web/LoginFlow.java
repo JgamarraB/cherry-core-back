@@ -1,5 +1,7 @@
 package com.cherrycore.auth.infrastructure.web;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,6 +24,7 @@ import com.cherrycore.identity.domain.AuthEventType;
 import com.cherrycore.identity.domain.IdentityErrorCode;
 import com.cherrycore.identity.infrastructure.web.RequestContextResolver;
 import com.cherrycore.shared.domain.error.DomainException;
+import com.cherrycore.shared.infrastructure.config.CherryCoreProperties;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -45,9 +48,14 @@ public class LoginFlow {
     private final SessionLoginHandler session;
     private final AuthEventLogger eventLogger;
     private final AccountLockoutService lockout;
+    private final Duration pendingLoginTtl;
+    private final Clock clock;
 
     LoginFlow(MfaService mfa, AccountQueryService accounts, StaffTenantService tenants, SessionLoginHandler session,
-            AuthEventLogger eventLogger, AccountLockoutService lockout) {
+            AuthEventLogger eventLogger, AccountLockoutService lockout, CherryCoreProperties properties,
+            Clock clock) {
+        this.pendingLoginTtl = properties.security().loginProtection().pendingLoginTtl();
+        this.clock = clock;
         this.lockout = lockout;
         this.mfa = mfa;
         this.accounts = accounts;
@@ -70,7 +78,7 @@ public class LoginFlow {
             return finish(account.id(), account.type(), account.isSuperAdmin(), factor, false, request, response);
         }
         request.getSession().setAttribute(PendingLogin.SESSION_ATTRIBUTE,
-                new PendingLogin(account.id(), account.type(), account.isSuperAdmin(), factor, 0));
+                new PendingLogin(account.id(), account.type(), account.isSuperAdmin(), factor, 0, clock.instant()));
         return new LoginResponse(enabled ? LoginStatus.MFA_REQUIRED : LoginStatus.MFA_SETUP_REQUIRED, null);
     }
 
@@ -122,7 +130,7 @@ public class LoginFlow {
     LoginStatus pendingStep(HttpServletRequest request) {
         HttpSession httpSession = request.getSession(false);
         if (httpSession == null || !(httpSession.getAttribute(PendingLogin.SESSION_ATTRIBUTE)
-                instanceof PendingLogin pending)) {
+                instanceof PendingLogin pending) || pending.isExpiredAt(clock.instant(), pendingLoginTtl)) {
             return null;
         }
         return mfa.isEnabled(pending.accountId()) ? LoginStatus.MFA_REQUIRED : LoginStatus.MFA_SETUP_REQUIRED;
@@ -156,11 +164,18 @@ public class LoginFlow {
         });
     }
 
-    private static PendingLogin pending(HttpServletRequest request) {
+    /*
+     * El login a medias tiene su propia caducidad (cherrycore.security.login-protection.pending-login-ttl),
+     * más corta que la sesión: pasado ese tiempo hay que volver a poner la contraseña.
+     */
+    private PendingLogin pending(HttpServletRequest request) {
         HttpSession httpSession = request.getSession(false);
         if (httpSession != null && httpSession.getAttribute(PendingLogin.SESSION_ATTRIBUTE)
                 instanceof PendingLogin pending) {
-            return pending;
+            if (!pending.isExpiredAt(clock.instant(), pendingLoginTtl)) {
+                return pending;
+            }
+            httpSession.removeAttribute(PendingLogin.SESSION_ATTRIBUTE);
         }
         throw new DomainException(IdentityErrorCode.NO_PENDING_LOGIN);
     }

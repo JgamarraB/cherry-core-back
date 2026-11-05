@@ -32,6 +32,12 @@ public interface IdentityNotifier {
     void emailChanged(EmailAddress previousEmail, Locale locale);
 
     /**
+     * Aviso al email ACTUAL de que se ha pedido cambiarlo (sin enlace de
+     * confirmación): si no ha sido su dueño, aún está a tiempo de reaccionar.
+     */
+    void emailChangeRequestedNotice(Account account, EmailAddress newEmail);
+
+    /**
      * Confirmación de borrado al email que tenía la cuenta.
      */
     void accountDeleted(EmailAddress email, Locale locale);

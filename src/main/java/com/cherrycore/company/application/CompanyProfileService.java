@@ -13,6 +13,7 @@ import com.cherrycore.company.domain.CompanyErrorCode;
 import com.cherrycore.company.domain.CompanyPermission;
 import com.cherrycore.company.domain.CompanyProfileData;
 import com.cherrycore.shared.application.port.FileStorage;
+import com.cherrycore.shared.application.port.ImageSanitizer;
 import com.cherrycore.shared.domain.error.DomainException;
 import com.cherrycore.shared.domain.id.UuidV7;
 import com.cherrycore.shared.domain.media.ImageType;
@@ -30,11 +31,13 @@ public class CompanyProfileService {
     private final CompanyRepository companies;
     private final CompanyLogos logos;
     private final FileStorage storage;
+    private final ImageSanitizer images;
     private final CompanySettings settings;
     private final Clock clock;
 
     public CompanyProfileService(CompanyAccessPolicy access, CompanyRepository companies, CompanyLogos logos,
-            FileStorage storage, CompanySettings settings, Clock clock) {
+            FileStorage storage, ImageSanitizer images, CompanySettings settings, Clock clock) {
+        this.images = images;
         this.access = access;
         this.companies = companies;
         this.logos = logos;
@@ -72,10 +75,12 @@ public class CompanyProfileService {
         }
         ImageType type = ImageType.detect(content)
                 .orElseThrow(() -> new DomainException(CompanyErrorCode.LOGO_INVALID_FORMAT));
+        // Sin metadatos (EXIF, GPS...) y con dimensiones razonables.
+        byte[] clean = images.sanitize(content, type);
 
         String previousKey = company.logoKey();
         String key = logos.keyFor(company.id(), UuidV7.generate(clock), type);
-        storage.storePublic(key, content, type.contentType());
+        storage.storePublic(key, clean, type.contentType());
         company.changeLogo(key);
         companies.save(company);
         deleteQuietly(previousKey);

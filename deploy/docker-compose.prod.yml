@@ -74,6 +74,10 @@ services:
       CHERRYCORE_FRONTEND_URL: https://${APP_DOMAIN}
       CORS_ALLOWED_ORIGINS: https://${APP_DOMAIN}
       CHERRYCORE_ENCRYPTION_KEY: ${CHERRYCORE_ENCRYPTION_KEY:?falta CHERRYCORE_ENCRYPTION_KEY}
+      CHERRYCORE_ENCRYPTION_KEY_ID: ${CHERRYCORE_ENCRYPTION_KEY_ID:-1}
+      # Solo durante una rotación de la clave de cifrado (lo usa ./config/application-prod.yaml).
+      CHERRYCORE_PREVIOUS_ENCRYPTION_KEY: ${CHERRYCORE_PREVIOUS_ENCRYPTION_KEY:-}
+      CHERRYCORE_HASH_KEY: ${CHERRYCORE_HASH_KEY:?falta CHERRYCORE_HASH_KEY}
       JWT_KEY_ID: ${JWT_KEY_ID:?falta JWT_KEY_ID}
       JWT_PRIVATE_KEY_LOCATION: file:/run/secrets/jwt-private.pem
       JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem

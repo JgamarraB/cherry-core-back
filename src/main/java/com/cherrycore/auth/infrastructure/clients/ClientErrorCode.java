@@ -7,7 +7,8 @@ public enum ClientErrorCode implements ErrorCode {
 
     INVALID_CLIENT_ID(ErrorCategory.INVALID_INPUT, "Client id must be lowercase letters, digits or dashes"),
     INVALID_REDIRECT_URI(ErrorCategory.INVALID_INPUT,
-            "Redirect URIs must be absolute https URLs (http only for localhost), without wildcards or fragments"),
+            "Redirect URIs must be absolute https URLs (http://localhost only in development), "
+                    + "without wildcards, fragments or credentials"),
     INVALID_SCOPE(ErrorCategory.INVALID_INPUT, "Scope not allowed"),
     RESERVED_APPLICATION(ErrorCategory.INVALID_INPUT, "This application is reserved for CherryCore itself"),
     APPLICATION_REQUIRED(ErrorCategory.INVALID_INPUT, "Staff and machine clients need an application"),

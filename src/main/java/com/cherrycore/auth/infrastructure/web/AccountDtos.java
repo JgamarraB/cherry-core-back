@@ -82,6 +82,19 @@ public final class AccountDtos {
         }
     }
 
+    /**
+     * @param currentPassword obligatoria si la cuenta tiene contraseña
+     */
+    public record MfaSetupRequest(
+            @Size(max = AuthDtos.MAX_PASSWORD_INPUT) String currentPassword
+    ) {
+
+        @Override
+        public String toString() {
+            return "MfaSetupRequest[***]";
+        }
+    }
+
     public record RecoveryCodesResponse(List<String> recoveryCodes) {
     }
 }

@@ -14,7 +14,7 @@ public class MfaFactor {
 
     private final UUID id;
     private final UUID accountId;
-    private final String encryptedSecret;
+    private String encryptedSecret;
     private Instant confirmedAt;
     private Long lastUsedStep;
 
@@ -33,6 +33,13 @@ public class MfaFactor {
     public void confirm(Instant now, long step) {
         confirmedAt = now;
         lastUsedStep = step;
+    }
+
+    /**
+     * El mismo secreto cifrado con otra clave (rotación de la clave de cifrado).
+     */
+    public void reencrypt(String newEncryptedSecret) {
+        encryptedSecret = Objects.requireNonNull(newEncryptedSecret);
     }
 
     public void recordUse(long step) {

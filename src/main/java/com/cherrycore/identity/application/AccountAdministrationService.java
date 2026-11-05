@@ -41,6 +41,7 @@ public class AccountAdministrationService {
 
     @Transactional
     public Account disable(UUID adminId, UUID accountId, RequestContext context) {
+        accounts.lockSuperAdmins();
         Account account = otherAccount(adminId, accountId);
         if (account.isSuperAdmin()) {
             requireAnotherSuperAdmin(account);
@@ -91,6 +92,7 @@ public class AccountAdministrationService {
 
     @Transactional
     public Account setSuperAdmin(UUID adminId, UUID accountId, boolean superAdmin, RequestContext context) {
+        accounts.lockSuperAdmins();
         Account account = otherAccount(adminId, accountId);
         if (account.type() != AccountType.STAFF) {
             throw new DomainException(IdentityErrorCode.NOT_A_STAFF_ACCOUNT);

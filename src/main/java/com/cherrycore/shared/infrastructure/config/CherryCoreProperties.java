@@ -19,6 +19,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 
 /**
@@ -97,11 +98,20 @@ public record CherryCoreProperties(
     }
 
     /**
-     * @param encryptionKey clave AES de 256 bits en Base64 para cifrar secretos
-     *                      (MFA). Generarla con: {@code openssl rand -base64 32}
+     * @param encryptionKey         clave AES de 256 bits en Base64 para cifrar secretos
+     *                              (MFA). Generarla con: {@code openssl rand -base64 32}
+     * @param encryptionKeyId       identificador de esa clave; va delante de cada dato cifrado
+     *                              para saber con qué clave descifrarlo (rotación)
+     * @param previousEncryptionKey clave anterior, solo para descifrar durante una rotación (opcional)
+     * @param hashKey               clave HMAC (Base64, 32 bytes o más) para los hashes de los
+     *                              códigos de recuperación MFA: sin ella no se pueden probar
+     *                              códigos contra una copia de la base de datos
      */
     public record Security(
             @NotBlank String encryptionKey,
+            @NotBlank @Pattern(regexp = KEY_ID_PATTERN) String encryptionKeyId,
+            @Valid PreviousEncryptionKey previousEncryptionKey,
+            @NotBlank String hashKey,
             @NotNull @Valid Tokens tokens,
             @NotNull @Valid SigningKey signingKey,
             @NotNull @Valid Password password,
@@ -109,6 +119,19 @@ public record CherryCoreProperties(
             @NotNull @Valid OneTimeTokens oneTimeTokens,
             @NotNull @Valid RateLimit rateLimit,
             @NotNull @Valid Session session
+    ) {
+    }
+
+    /** Formato del id de una clave de cifrado (va en cada dato cifrado: "k{id}:..."). */
+    public static final String KEY_ID_PATTERN = "^[A-Za-z0-9_-]{1,32}$";
+
+    /**
+     * Clave de cifrado anterior (rotación): solo se usa para descifrar lo que
+     * aún no se ha vuelto a cifrar con la actual.
+     */
+    public record PreviousEncryptionKey(
+            @NotBlank @Pattern(regexp = KEY_ID_PATTERN) String id,
+            @NotBlank String key
     ) {
     }
 
@@ -150,13 +173,29 @@ public record CherryCoreProperties(
             @NotBlank String keyId,
             Resource privateKeyLocation,
             Resource publicKeyLocation,
-            boolean generateEphemeral
+            boolean generateEphemeral,
+            List<@Valid PreviousSigningKey> previousKeys
     ) {
+
+        public SigningKey {
+            previousKeys = previousKeys == null ? List.of() : List.copyOf(previousKeys);
+        }
 
         @AssertTrue(message = "signing key: configure PEM locations or enable generate-ephemeral (dev only)")
         public boolean isConfigured() {
             return generateEphemeral || (privateKeyLocation != null && publicKeyLocation != null);
         }
+    }
+
+    /**
+     * Clave pública de firma anterior. Se sigue publicando en el JWKS durante
+     * una rotación para que los tokens ya firmados con ella sigan valiendo
+     * hasta caducar; los nuevos se firman siempre con la actual.
+     */
+    public record PreviousSigningKey(
+            @NotBlank String keyId,
+            @NotNull Resource publicKeyLocation
+    ) {
     }
 
     /**
@@ -176,9 +215,14 @@ public record CherryCoreProperties(
     /**
      * Bloqueo temporal de una cuenta tras varios intentos fallidos.
      */
+    /**
+     * @param pendingLoginTtl cuánto vale un login a medias (contraseña correcta,
+     *                        falta el segundo factor). Después hay que volver a empezar.
+     */
     public record LoginProtection(
             @Positive int maxFailedAttempts,
-            @NotNull Duration lockDuration
+            @NotNull Duration lockDuration,
+            @NotNull Duration pendingLoginTtl
     ) {
     }
 
@@ -227,8 +271,10 @@ public record CherryCoreProperties(
      * Almacenamiento de ficheros (servidor compatible con S3). Cada empresa tiene
      * su carpeta: {@code companies/{companyId}/...}.
      *
-     * @param publicBaseUrl URL pública desde la que se sirven los ficheros
-     *                      públicos (logos). Normalmente el dominio de media.
+     * @param publicBaseUrl     URL pública desde la que se sirven los ficheros
+     *                          públicos (logos). Normalmente el dominio de media.
+     * @param maxImageDimension ancho y alto máximos (píxeles) de una imagen subida:
+     *                          evita "bombas" que pesan poco pero ocupan GB al abrirlas
      */
     public record Storage(
             @NotNull URI endpoint,
@@ -236,7 +282,8 @@ public record CherryCoreProperties(
             @NotBlank String secretKey,
             @NotBlank String bucket,
             @NotNull URI publicBaseUrl,
-            @NotNull DataSize maxImageSize
+            @NotNull DataSize maxImageSize,
+            @Positive int maxImageDimension
     ) {
     }
 
@@ -281,7 +328,11 @@ public record CherryCoreProperties(
     public record Bootstrap(@Email String superAdminEmail) {
     }
 
-    public record OAuth(@NotNull List<@Valid Client> clients) {
+    /**
+     * @param allowInsecureRedirectUris permite redirect URIs {@code http://localhost}
+     *                                  (solo desarrollo y tests; en producción siempre https)
+     */
+    public record OAuth(@NotNull List<@Valid Client> clients, boolean allowInsecureRedirectUris) {
     }
 
     /**

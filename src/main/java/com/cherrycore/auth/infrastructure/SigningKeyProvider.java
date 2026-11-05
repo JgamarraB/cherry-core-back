@@ -4,15 +4,20 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.security.converter.RsaKeyConverters;
 import org.springframework.stereotype.Component;
 
 import com.cherrycore.shared.infrastructure.config.CherryCoreProperties;
 import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.jwk.JWK;
+import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 
@@ -32,14 +37,44 @@ public class SigningKeyProvider {
     private static final int RSA_KEY_SIZE = 2048;
 
     private final RSAKey rsaKey;
+    private final List<RSAKey> previousKeys;
 
+    @Autowired
     public SigningKeyProvider(CherryCoreProperties properties) {
-        CherryCoreProperties.SigningKey config = properties.security().signingKey();
-        this.rsaKey = config.generateEphemeral() ? generate(config.keyId()) : load(config);
+        this(properties.security().signingKey());
     }
 
+    SigningKeyProvider(CherryCoreProperties.SigningKey config) {
+        this.rsaKey = config.generateEphemeral() ? generate(config.keyId()) : load(config);
+        this.previousKeys = config.previousKeys().stream()
+                .map(previous -> new RSAKey.Builder(read(previous.publicKeyLocation(),
+                        RsaKeyConverters.x509()::convert)).keyID(previous.keyId()).build())
+                .toList();
+        boolean repeatedId = previousKeys.stream().map(RSAKey::getKeyID)
+                .anyMatch(id -> id.equals(rsaKey.getKeyID()))
+                || previousKeys.stream().map(RSAKey::getKeyID).distinct().count() != previousKeys.size();
+        if (repeatedId) {
+            throw new IllegalStateException("signing-key: every key (current and previous) needs a different key-id");
+        }
+    }
+
+    /**
+     * Clave actual (con la privada): la única con la que se firman tokens nuevos.
+     */
     public RSAKey rsaKey() {
         return rsaKey;
+    }
+
+    /**
+     * Claves públicas con las que se validan tokens: la actual y las anteriores
+     * (durante una rotación, los tokens firmados con la anterior siguen valiendo
+     * hasta caducar). Es lo que se publica en {@code /oauth2/jwks}.
+     */
+    public JWKSet verificationKeys() {
+        List<JWK> keys = new ArrayList<>();
+        keys.add(rsaKey.toPublicJWK());
+        keys.addAll(previousKeys);
+        return new JWKSet(keys);
     }
 
     public RSAPublicKey publicKey() {

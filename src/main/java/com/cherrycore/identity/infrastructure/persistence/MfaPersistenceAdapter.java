@@ -39,6 +39,7 @@ class MfaPersistenceAdapter implements MfaRepository {
     public void save(MfaFactor factor) {
         MfaFactorJpaEntity entity = factors.findById(factor.id())
                 .orElseGet(() -> new MfaFactorJpaEntity(factor.id(), factor.accountId(), factor.encryptedSecret()));
+        entity.setSecretEncrypted(factor.encryptedSecret());
         entity.setConfirmedAt(factor.confirmedAt());
         entity.setLastUsedStep(factor.lastUsedStep());
         factors.saveAndFlush(entity);

@@ -7,7 +7,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -20,6 +19,7 @@ import com.cherrycore.admin.application.DashboardView;
 import com.cherrycore.admin.application.port.AdminReadModel;
 import com.cherrycore.shared.application.PageQuery;
 import com.cherrycore.shared.application.PageResult;
+import com.cherrycore.shared.infrastructure.persistence.LikePatterns;
 
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
@@ -81,7 +81,6 @@ class JdbcAdminReadModel implements AdminReadModel {
 
     private static final String COUNT = "SELECT COUNT(*) ";
     private static final String PAGE = " LIMIT :limit OFFSET :offset";
-    private static final String LIKE = "%";
     private static final String SUPER_ADMIN = "SUPER_ADMIN";
 
     private final JdbcClient jdbc;
@@ -115,9 +114,9 @@ class JdbcAdminReadModel implements AdminReadModel {
             params.put("status", status);
         }
         if (search != null) {
-            where.append(" AND (a.email LIKE :search OR LOWER(COALESCE(c.first_name, s.first_name, '') || ' '"
-                    + " || COALESCE(c.last_name, s.last_name, '')) LIKE :search)");
-            params.put("search", LIKE + search.toLowerCase(Locale.ROOT) + LIKE);
+            where.append(" AND (a.email LIKE :search ESCAPE '\\' OR LOWER(COALESCE(c.first_name, s.first_name, '')"
+                    + " || ' ' || COALESCE(c.last_name, s.last_name, '')) LIKE :search ESCAPE '\\')");
+            params.put("search", LikePatterns.containingLowercase(search));
         }
         long total = jdbc.sql(COUNT + ACCOUNTS_FROM + where).params(params).query(Long.class).single();
         List<AccountSummary> items = jdbc.sql(ACCOUNTS_SELECT + ACCOUNTS_FROM + where

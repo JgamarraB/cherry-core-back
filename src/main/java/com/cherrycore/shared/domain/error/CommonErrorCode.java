@@ -10,6 +10,8 @@ public enum CommonErrorCode implements ErrorCode {
     INVALID_NAME(ErrorCategory.INVALID_INPUT, "Name is not valid"),
     INVALID_PHONE(ErrorCategory.INVALID_INPUT, "Phone number must be in international format, e.g. +34600111222"),
     INVALID_COUNTRY_CODE(ErrorCategory.INVALID_INPUT, "Country code must be ISO 3166-1 alpha-2, e.g. ES"),
+    IMAGE_UNREADABLE(ErrorCategory.INVALID_INPUT, "The image is damaged or is not a valid image"),
+    IMAGE_DIMENSIONS_TOO_LARGE(ErrorCategory.INVALID_INPUT, "The image width or height is too large"),
     AUTHENTICATION_REQUIRED(ErrorCategory.UNAUTHENTICATED, "Authentication is required"),
     ACCESS_DENIED(ErrorCategory.FORBIDDEN, "Access denied"),
     CSRF_TOKEN_INVALID(ErrorCategory.FORBIDDEN, "CSRF token is missing or invalid"),

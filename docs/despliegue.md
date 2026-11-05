@@ -63,7 +63,7 @@ openssl rsa -in secrets/jwt-private.pem -pubout -out secrets/jwt-public.pem
 sudo chown 10001:10001 secrets/*.pem && sudo chmod 400 secrets/*.pem   # 10001 = usuario del contenedor
 ```
 
-Para generar secretos: `openssl rand -base64 32`. **`CHERRYCORE_ENCRYPTION_KEY` y la clave JWT no se pueden perder**: guárdalas en el gestor de contraseñas del equipo.
+Para generar secretos: `openssl rand -base64 32`. **`CHERRYCORE_ENCRYPTION_KEY`, `CHERRYCORE_HASH_KEY` y la clave JWT no se pueden perder**: guárdalas en el gestor de contraseñas del equipo. Sin cualquiera de ellas el backend no arranca. Para rotarlas: §11.
 
 Brevo: verificar el dominio del remitente (SPF y DKIM) y crear una *SMTP key* (Brevo → SMTP & API).
 
@@ -159,6 +159,7 @@ Rotación: 5 ficheros de 10 MB por contenedor. La IP real del cliente llega al b
 - [ ] DNS de `APP_DOMAIN` y `MEDIA_DOMAIN` apuntando a la VM; certificados emitidos (`logs caddy`).
 - [ ] `.env` completo, `chmod 600`; secretos guardados también fuera de la VM.
 - [ ] Clave JWT generada y con permisos `400` del usuario 10001.
+- [ ] `CHERRYCORE_ENCRYPTION_KEY` y `CHERRYCORE_HASH_KEY` generadas (distintas) y guardadas fuera de la VM.
 - [ ] Brevo: dominio verificado (SPF/DKIM); llega el email de prueba (p. ej. "¿Olvidaste tu contraseña?").
 - [ ] Superadmin activo con MFA; `SUPER_ADMIN_EMAIL` vaciado.
 - [ ] `https://APP_DOMAIN/.well-known/openid-configuration` devuelve el `issuer` correcto (https, sin barra final).
@@ -168,3 +169,67 @@ Rotación: 5 ficheros de 10 MB por contenedor. La IP real del cliente llega al b
 - [ ] Textos legales (`/legal/terms`, `/legal/privacy`) completados y **revisados por un abogado**.
 - [ ] `ufw` activo: solo 22, 80 y 443.
 - [ ] Cliente OAuth de Lirgar creado y login de extremo a extremo probado.
+
+## 11. Rotar claves
+
+Si una clave se ha filtrado, o como mantenimiento (p. ej. cada año).
+
+### Clave de firma de los tokens (JWT)
+
+Los tokens nuevos se firman con la clave nueva; la anterior se sigue **publicando** en `/oauth2/jwks` para que los tokens ya emitidos sigan valiendo hasta caducar (access token: 15 min).
+
+```bash
+cd /opt/cherrycore/cherry-core-back/deploy
+# 1. Guardar la pública actual como "anterior" y crear la nueva.
+sudo cp secrets/jwt-public.pem secrets/jwt-public-previous.pem
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/jwt-private.pem
+openssl rsa -in /tmp/jwt-private.pem -pubout -out /tmp/jwt-public.pem
+sudo mv /tmp/jwt-private.pem /tmp/jwt-public.pem secrets/
+sudo chown 10001:10001 secrets/*.pem && sudo chmod 400 secrets/*.pem
+```
+
+2. En `config/application-prod.yaml`, publicar la anterior con su id (el `JWT_KEY_ID` que había):
+
+```yaml
+cherrycore:
+  security:
+    signing-key:
+      previous-keys:
+        - key-id: cherrycore-2026-11
+          public-key-location: file:/run/secrets/jwt-public-previous.pem
+```
+
+3. En `.env`, poner un `JWT_KEY_ID` nuevo (p. ej. `cherrycore-2027-01`) y `docker compose -f docker-compose.prod.yml up -d backend`.
+4. Comprobar que `https://APP_DOMAIN/oauth2/jwks` lista las dos claves.
+5. Pasado un día (más que cualquier token y que la caché de JWKS de las apps), quitar `previous-keys` y `secrets/jwt-public-previous.pem` y reiniciar el backend.
+
+Si la clave privada se ha **filtrado**: no publicar la anterior (saltar el paso 2) y cerrar las sesiones de las apps; los usuarios vuelven a entrar.
+
+### Clave de cifrado de los secretos MFA (`CHERRYCORE_ENCRYPTION_KEY`)
+
+Cada secreto guardado lleva el id de su clave (`k1:...`). Con la clave anterior configurada, lo antiguo se sigue leyendo y **se vuelve a cifrar con la nueva cada vez que alguien usa su MFA**.
+
+1. En `.env`: `CHERRYCORE_PREVIOUS_ENCRYPTION_KEY` = la clave actual; `CHERRYCORE_ENCRYPTION_KEY` = una nueva (`openssl rand -base64 32`); `CHERRYCORE_ENCRYPTION_KEY_ID` = id nuevo (p. ej. de `1` a `2`).
+2. En `config/application-prod.yaml`:
+
+```yaml
+cherrycore:
+  security:
+    previous-encryption-key:
+      id: "1"                                   # el id ANTERIOR
+      key: ${CHERRYCORE_PREVIOUS_ENCRYPTION_KEY}
+```
+
+3. `docker compose -f docker-compose.prod.yml up -d backend`.
+4. Cuando ya no queden secretos con la clave anterior, quitar el bloque y la variable y reiniciar:
+
+```sql
+SELECT COUNT(*) FROM mfa_factors WHERE deleted_at IS NULL AND secret_encrypted NOT LIKE 'k2:%';
+```
+
+Quien no haya usado su MFA en ese tiempo: el superadmin le reinicia el MFA (lo configurará de nuevo al entrar).
+
+### Clave HMAC de los códigos de recuperación (`CHERRYCORE_HASH_KEY`)
+
+No tiene rotación gradual: al cambiarla, **los códigos de recuperación existentes dejan de valer** (la app autenticadora sigue funcionando). Cada persona genera códigos nuevos en Mi cuenta → Verificación en dos pasos. Cambiarla solo si se ha filtrado junto con la base de datos.
+

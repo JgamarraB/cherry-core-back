@@ -48,6 +48,13 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - Google solo cuenta como email verificado si es Gmail o de Google Workspace (claim `hd`); con otro email no se vincula ni se crea cuenta (las identidades ya vinculadas siguen funcionando). — 2026-11-06
 - El último superadmin activo no puede borrar su cuenta. — 2026-11-06
 
+- Activar el MFA desde "Mi cuenta" pide la contraseña actual (o haber entrado hace poco si la cuenta no tiene); los fallos cuentan para el bloqueo. — 2026-11-06
+- El login a medias (contraseña bien, falta el código) caduca a los 10 minutos (`pending-login-ttl`). — 2026-11-06
+- Los códigos de recuperación se guardan con HMAC-SHA256 y una clave del servidor (`CHERRYCORE_HASH_KEY`), no con SHA-256 sin clave. — 2026-11-06
+- Los secretos MFA cifrados llevan el id de su clave (`k1:...`); la clave se puede rotar con `previous-encryption-key` (ver despliegue §11). — 2026-11-06
+- Al pedir un cambio de email se avisa también al email actual. — 2026-11-06
+- Las acciones que pueden dejar la plataforma sin superadmin se serializan con un bloqueo de Postgres. — 2026-11-06
+
 ## D4 · CherryCore es nuestro Identity Provider — 2026-11-05
 
 - Se construye con **Spring Authorization Server** (OAuth2 / OpenID Connect).
@@ -57,6 +64,9 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - La sesión de login de CherryCore es una cookie `HttpOnly` guardada en Postgres (Spring Session): permite varias instancias.
 - Las apps usan el patrón **BFF**: su backend recibe y guarda los tokens; el navegador solo tiene una cookie. PKCE obligatorio y refresh tokens que cambian en cada uso.
 - Contrato para el frontend: [api.md](api.md). Cómo se conecta una app: [integracion-apps.md](integracion-apps.md).
+
+- La clave de firma se puede rotar: las anteriores se publican en el JWKS (`signing-key.previous-keys`) hasta que caducan sus tokens; se firma siempre con la actual. — 2026-11-06
+- En producción las redirect URIs son siempre https (`allow-insecure-redirect-uris` solo en local/test). — 2026-11-06
 
 ## D5 · Formato de respuestas y errores — 2026-11-05
 
@@ -128,6 +138,8 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - Los emails de una empresa (invitaciones, aprobación) llevan **su logo o, si no tiene, su nombre comercial**. Los de cuenta llevan la marca de la plataforma.
 
 - Las apps del catálogo también tienen su carpeta pública `applications/{id}/public/...` (logo que se ve en el login). — 2026-11-06
+
+- Los logos se re-codifican (PNG/JPEG) sin metadatos y con un máximo de 4096×4096 px leído de la cabecera antes de decodificar. WEBP no se re-codifica (Java no lo decodifica sin librería extra): se comprueban sus dimensiones en la cabecera y se quitan los bloques EXIF/XMP. — 2026-11-06
 
 ## D13 · Borrado de cuenta (RGPD) — 2026-11-05
 

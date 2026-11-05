@@ -98,6 +98,68 @@ class StaffLoginAndMfaIntegrationTest {
         assertThat(JsonBodies.<String>read(session, "$.data.pendingStep")).isNull();
     }
 
+    /*
+     * Los códigos de recuperación tienen ~49 bits: con un SHA-256 sin clave,
+     * una copia de la base de datos bastaba para sacarlos por fuerza bruta.
+     * Ahora son HMAC con una clave que no está en la base de datos.
+     */
+    @Test
+    void recoveryCodesAreStoredAsKeyedHashes() throws Exception {
+        String email = StaffFixtures.registerCompany(browser, mailbox, "Taller Hash");
+        StaffFixtures.MfaSetup mfa = StaffFixtures.mfaSetup(browser, email);
+
+        List<String> stored = jdbc.sql("""
+                SELECT r.code_hash FROM mfa_recovery_codes r JOIN accounts a ON a.id = r.account_id
+                 WHERE a.email = ? AND r.deleted_at IS NULL
+                """).param(email).query(String.class).list();
+        List<String> unkeyed = mfa.recoveryCodes().stream()
+                .map(code -> sha256(code.replace("-", "").toLowerCase(java.util.Locale.ROOT))).toList();
+        assertThat(stored).hasSize(10).doesNotContainAnyElementsOf(unkeyed);
+
+        // Y siguen sirviendo para entrar (una sola vez).
+        BrowserSession next = new BrowserSession(mockMvc);
+        next.postJson(AuthPaths.STAFF_LOGIN, StaffFixtures.loginBody(email));
+        MvcResult recovered = next.postJson(AuthPaths.MFA_VERIFY,
+                "{\"code\": \"" + mfa.recoveryCodes().getFirst() + "\"}");
+        assertThat(recovered.getResponse().getStatus()).isEqualTo(200);
+    }
+
+    /*
+     * Rotación de la clave de cifrado: cada secreto lleva el id de su clave
+     * ("k1:..."). Los de antes del id (sin prefijo) se siguen leyendo y, al
+     * usarse, se vuelven a cifrar con la clave actual.
+     */
+    @Test
+    void mfaSecretsCarryTheirKeyIdAndLegacyOnesAreReencryptedOnUse() throws Exception {
+        String email = StaffFixtures.registerCompany(browser, mailbox, "Taller Clave");
+        String secret = StaffFixtures.firstLoginWithMfaSetup(browser, email);
+        String select = """
+                SELECT f.secret_encrypted FROM mfa_factors f JOIN accounts a ON a.id = f.account_id
+                 WHERE a.email = ? AND f.deleted_at IS NULL
+                """;
+        String stored = jdbc.sql(select).param(email).query(String.class).single();
+        assertThat(stored).startsWith("k1:");
+
+        // Formato antiguo (sin id de clave): mismo cifrado, sin prefijo.
+        jdbc.sql("""
+                UPDATE mfa_factors SET secret_encrypted = ? WHERE account_id = (SELECT id FROM accounts WHERE email = ?)
+                """).param(stored.substring("k1:".length())).param(email).update();
+
+        StaffFixtures.login(mockMvc, email, secret);
+
+        assertThat(jdbc.sql(select).param(email).query(String.class).single()).startsWith("k1:")
+                .isNotEqualTo(stored);
+    }
+
+    private static String sha256(String value) {
+        try {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
     @Test
     void approvedCompanyIsSelectedAutomaticallyAfterMfa() throws Exception {
         String email = StaffFixtures.registerCompany(browser, mailbox, "Taller Dos");

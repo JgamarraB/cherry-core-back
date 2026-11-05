@@ -76,6 +76,12 @@ class EventPublishingIdentityNotifier implements IdentityNotifier {
     }
 
     @Override
+    public void emailChangeRequestedNotice(Account account, EmailAddress newEmail) {
+        publish(IdentityEmailType.EMAIL_CHANGE_REQUESTED, account, account.email().value(),
+                frontend.passwordResetUrl().toString(), newEmail.value());
+    }
+
+    @Override
     public void accountDeleted(EmailAddress email, Locale locale) {
         publisher.publishEvent(new EmailRequested(IdentityEmailType.ACCOUNT_DELETED.key(), email.value(), locale,
                 null, null, List.of()));

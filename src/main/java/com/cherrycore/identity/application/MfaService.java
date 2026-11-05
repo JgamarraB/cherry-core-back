@@ -17,8 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.cherrycore.identity.application.port.AccountRepository;
 import com.cherrycore.identity.application.port.MfaRepository;
+import com.cherrycore.identity.application.port.RecoveryCodeHasher;
 import com.cherrycore.identity.application.port.SecretEncryptor;
-import com.cherrycore.identity.application.port.SecureTokenService;
 import com.cherrycore.identity.domain.Account;
 import com.cherrycore.identity.domain.AccountType;
 import com.cherrycore.identity.domain.AuthEventType;
@@ -49,14 +49,14 @@ public class MfaService {
     private final MfaRepository mfaRepository;
     private final AccountRepository accounts;
     private final SecretEncryptor encryptor;
-    private final SecureTokenService hasher;
+    private final RecoveryCodeHasher hasher;
     private final IdentitySettings settings;
     private final AccountLockoutService lockout;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
 
     public MfaService(MfaRepository mfaRepository, AccountRepository accounts, SecretEncryptor encryptor,
-            SecureTokenService hasher, IdentitySettings settings, AccountLockoutService lockout, Clock clock) {
+            RecoveryCodeHasher hasher, IdentitySettings settings, AccountLockoutService lockout, Clock clock) {
         this.lockout = lockout;
         this.mfaRepository = mfaRepository;
         this.accounts = accounts;
@@ -127,10 +127,14 @@ public class MfaService {
             return false;
         }
         String cleaned = code.strip();
-        OptionalLong step = Totp.verify(encryptor.decrypt(factor.get().encryptedSecret()), cleaned, clock.instant(),
-                factor.get().lastUsed());
+        byte[] secret = encryptor.decrypt(factor.get().encryptedSecret());
+        OptionalLong step = Totp.verify(secret, cleaned, clock.instant(), factor.get().lastUsed());
         if (step.isPresent()) {
             factor.get().recordUse(step.getAsLong());
+            if (!encryptor.isCurrent(factor.get().encryptedSecret())) {
+                // Cifrado con la clave anterior: se pasa a la actual (rotación).
+                factor.get().reencrypt(encryptor.encrypt(secret));
+            }
             mfaRepository.save(factor.get());
             return true;
         }

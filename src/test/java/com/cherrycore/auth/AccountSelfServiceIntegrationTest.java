@@ -112,6 +112,10 @@ class AccountSelfServiceIntegrationTest {
         assertThat(confirmed.getResponse().getStatus()).isEqualTo(200);
         mailbox.awaitEmail(email, "El email de tu cuenta ha cambiado");
 
+        // El email anterior se enteró ya al pedirse el cambio (sin el enlace de confirmación).
+        var notice = mailbox.awaitEmail(email, "Se ha pedido cambiar el email de tu cuenta");
+        assertThat(notice.textBody()).contains(newEmail).doesNotContain(token);
+
         assertThat(new BrowserSession(mockMvc).login(newEmail, PASSWORD).getResponse().getStatus()).isEqualTo(200);
         assertThat(new BrowserSession(mockMvc).login(email, PASSWORD).getResponse().getStatus()).isEqualTo(401);
     }
@@ -188,10 +192,28 @@ class AccountSelfServiceIntegrationTest {
         assertThat(otherDevice.get("/api/account").getResponse().getStatus()).isEqualTo(401);
     }
 
+    /*
+     * Con una sesión robada se podía activar el MFA con la app del atacante:
+     * el dueño se quedaba fuera de su cuenta. Ahora pide la contraseña actual
+     * y los fallos cuentan para el bloqueo.
+     */
+    @Test
+    void turningOnTwoStepVerificationRequiresTheCurrentPassword() throws Exception {
+        MvcResult withoutPassword = session.call(HttpMethod.POST, "/api/account/mfa/setup", "{}");
+        assertThat(JsonBodies.<String>read(withoutPassword, "$.error.code")).isEqualTo("WRONG_CURRENT_PASSWORD");
+        for (int attempt = 0; attempt < 4; attempt++) {
+            MvcResult wrong = session.call(HttpMethod.POST, "/api/account/mfa/setup",
+                    "{\"currentPassword\": \"intento-" + attempt + "-xx\"}");
+            assertThat(JsonBodies.<String>read(wrong, "$.error.code")).isEqualTo("WRONG_CURRENT_PASSWORD");
+        }
+        mailbox.awaitEmail(email, CustomerFixtures.LOCKED_SUBJECT_ES);
+        assertThat(JsonBodies.<Boolean>read(session.get("/api/account/mfa"), "$.data.enabled")).isFalse();
+    }
+
     @Test
     void customersCanTurnOnTwoStepVerification() throws Exception {
-        String secret = JsonBodies.read(session.call(HttpMethod.POST, "/api/account/mfa/setup", null),
-                "$.data.secret");
+        String secret = JsonBodies.read(session.call(HttpMethod.POST, "/api/account/mfa/setup",
+                "{\"currentPassword\": \"" + PASSWORD + "\"}"), "$.data.secret");
         MvcResult enabled = session.call(HttpMethod.POST, "/api/account/mfa/setup/confirm",
                 "{\"code\": \"" + TotpCodes.code(secret, 0) + "\"}");
         assertThat(JsonBodies.<List<String>>read(enabled, "$.data.recoveryCodes")).hasSize(10);

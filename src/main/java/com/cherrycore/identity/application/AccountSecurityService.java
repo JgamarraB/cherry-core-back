@@ -88,6 +88,19 @@ public class AccountSecurityService {
     }
 
     /**
+     * Empieza a activar el MFA desde "mi cuenta". Pide la contraseña actual
+     * (o haber entrado hace poco si la cuenta no tiene): si no, quien robara
+     * una sesión podría poner SU app autenticadora y dejar fuera al dueño.
+     */
+    @Transactional
+    public MfaEnrollment startMfaEnrollment(UUID accountId, String currentPassword, boolean recentlyAuthenticated,
+            RequestContext context) {
+        Account account = activeAccount(accountId);
+        requirePassword(account, currentPassword, recentlyAuthenticated, context);
+        return mfa.startEnrollment(accountId);
+    }
+
+    /**
      * Envía un enlace al email nuevo. El cambio solo se aplica al pulsarlo.
      */
     @Transactional
@@ -105,6 +118,7 @@ public class AccountSecurityService {
         String rawToken = tokenIssuer.issue(account, OneTimeTokenPurpose.EMAIL_CHANGE,
                 settings.emailVerificationTtl(), newEmail.value());
         notifier.emailChangeRequested(account, newEmail, rawToken);
+        notifier.emailChangeRequestedNotice(account, newEmail);
         eventLogger.log(AuthEventType.EMAIL_CHANGE_REQUESTED, accountId, context);
     }
 
@@ -147,9 +161,12 @@ public class AccountSecurityService {
             throw new DomainException(IdentityErrorCode.INVALID_MFA_CODE);
         }
         // Igual que en el panel: la plataforma nunca se queda sin superadmin.
-        if (account.isSuperAdmin() && accounts.findSuperAdmins().stream()
-                .noneMatch(admin -> admin.isActive() && !admin.id().equals(accountId))) {
-            throw new DomainException(IdentityErrorCode.LAST_SUPER_ADMIN);
+        if (account.isSuperAdmin()) {
+            accounts.lockSuperAdmins();
+            if (accounts.findSuperAdmins().stream()
+                    .noneMatch(admin -> admin.isActive() && !admin.id().equals(accountId))) {
+                throw new DomainException(IdentityErrorCode.LAST_SUPER_ADMIN);
+            }
         }
         EmailAddress originalEmail = account.email();
         Locale locale = account.locale();

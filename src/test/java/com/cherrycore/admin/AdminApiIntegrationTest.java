@@ -8,6 +8,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -200,6 +205,67 @@ class AdminApiIntegrationTest {
 
         assertThat(JsonBodies.<String>read(attempt, "$.error.code")).isEqualTo("LAST_SUPER_ADMIN");
         assertThat(admin.get("/api/account").getResponse().getStatus()).isEqualTo(200);
+    }
+
+    /*
+     * "%" y "_" son comodines de LIKE: buscar "%" devolvía todas las cuentas y
+     * "_" cualquier carácter. Se buscan como texto.
+     */
+    @Test
+    void searchTreatsLikeWildcardsAsText() throws Exception {
+        CustomerFixtures.registerVerified(new BrowserSession(mockMvc), mailbox);
+        MvcResult percent = admin.get("http://localhost/api/admin/accounts?search=%25", MediaType.APPLICATION_JSON);
+        assertThat(JsonBodies.<List<Object>>read(percent, "$.data.items")).isEmpty();
+        MvcResult underscore = admin.get("http://localhost/api/admin/accounts?search=_", MediaType.APPLICATION_JSON);
+        assertThat(JsonBodies.<List<Object>>read(underscore, "$.data.items")).isEmpty();
+
+        StaffFixtures.registerCompany(new BrowserSession(mockMvc), mailbox, "Pack_Ocho");
+        List<String> names = JsonBodies.read(admin.get("/api/admin/companies?search=k_O"),
+                "$.data.items[*].tradeName");
+        assertThat(names).containsOnly("Pack_Ocho");
+        MvcResult anyCompany = admin.get("http://localhost/api/admin/companies?search=%25",
+                MediaType.APPLICATION_JSON);
+        assertThat(JsonBodies.<List<Object>>read(anyCompany, "$.data.items")).isEmpty();
+    }
+
+    /*
+     * Dos superadmins (los únicos) se desactivan el uno al otro a la vez: sin
+     * bloqueo, los dos ven "queda otro" y la plataforma se queda sin ninguno.
+     */
+    @Test
+    void twoLastSuperAdminsDisablingEachOtherAtOnceLeaveOne() throws Exception {
+        String otherEmail = StaffFixtures.createSuperAdmin(accounts, hasher, staffUsers);
+        BrowserSession other = new BrowserSession(mockMvc);
+        StaffFixtures.firstLoginWithMfaSetup(other, otherEmail);
+        UUID myId = StaffFixtures.accountIdOf(admin);
+        UUID otherId = StaffFixtures.accountIdOf(other);
+        accounts.findSuperAdmins().stream()
+                .filter(account -> !account.id().equals(myId) && !account.id().equals(otherId))
+                .forEach(account -> {
+                    account.revokePlatformRole();
+                    accounts.save(account);
+                });
+
+        CyclicBarrier start = new CyclicBarrier(2);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<Integer> one = pool.submit(() -> {
+                start.await();
+                return admin.call(HttpMethod.POST, "/api/admin/accounts/" + otherId + "/disable", null)
+                        .getResponse().getStatus();
+            });
+            Future<Integer> two = pool.submit(() -> {
+                start.await();
+                return other.call(HttpMethod.POST, "/api/admin/accounts/" + myId + "/disable", null)
+                        .getResponse().getStatus();
+            });
+            assertThat(List.of(one.get(30, TimeUnit.SECONDS), two.get(30, TimeUnit.SECONDS))).contains(200);
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(accounts.findSuperAdmins().stream().filter(account -> account.isActive()).count())
+                .isEqualTo(1);
     }
 
     @Test

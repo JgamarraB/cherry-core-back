@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import com.cherrycore.company.application.CompanyReviewService;
 import com.cherrycore.identity.infrastructure.web.AuthPaths;
+import com.cherrycore.shared.domain.media.ImageType;
 import com.cherrycore.support.BrowserSession;
 import com.cherrycore.support.CapturingEmailSender;
 import com.cherrycore.support.CustomerFixtures;
@@ -25,13 +26,15 @@ import com.cherrycore.support.IntegrationTest;
 import com.cherrycore.support.JsonBodies;
 import com.cherrycore.support.StaffFixtures;
 import com.cherrycore.support.StaffFixtures.Owner;
+import com.cherrycore.support.TestImages;
 import com.cherrycore.support.TotpCodes;
 
 @IntegrationTest
 class CompanyManagementIntegrationTest {
 
     private static final String INVITATION_SUBJECT_ES = "Te han invitado a unirte a un equipo";
-    private static final byte[] PNG = {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0};
+    private static final String GPS = "GPSLatitude=40.4168";
+    private static final byte[] PNG = TestImages.pngWithText(GPS);
 
     @Autowired
     private MockMvc mockMvc;
@@ -213,7 +216,12 @@ class CompanyManagementIntegrationTest {
         HttpResponse<byte[]> download = HttpClient.newHttpClient().send(
                 HttpRequest.newBuilder(URI.create(logoUrl)).build(), HttpResponse.BodyHandlers.ofByteArray());
         assertThat(download.statusCode()).isEqualTo(200);
-        assertThat(download.body()).isEqualTo(PNG);
+        // Se publica la imagen re-codificada: sin metadatos (EXIF, GPS, comentarios...).
+        assertThat(ImageType.detect(download.body())).contains(ImageType.PNG);
+        assertThat(TestImages.contains(download.body(), GPS)).isFalse();
+
+        MvcResult bomb = owner.session().upload("/api/company/logo", "file", TestImages.png(8000, 1));
+        assertThat(JsonBodies.<String>read(bomb, "$.error.code")).isEqualTo("IMAGE_DIMENSIONS_TOO_LARGE");
     }
 
     @Test

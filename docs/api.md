@@ -81,7 +81,8 @@ Errores de datos: `INVALID_EMAIL`, `PASSWORD_TOO_SHORT`, `PASSWORD_TOO_LONG`, `P
 | `GET /sessions` | — | `[{id, createdAt, lastActiveAt, ip, userAgent, current}]` |
 | `DELETE /sessions/{id}` | — | — |
 | `GET /mfa` | — | `{enabled, required, recoveryCodesLeft}` |
-| `POST /mfa/setup` · `POST /mfa/setup/confirm` | — · `{code}` | como en el login |
+| `POST /mfa/setup` | `{currentPassword}` (`{}` si la cuenta no tiene contraseña) | `{secret, otpauthUri}`. Errores: `WRONG_CURRENT_PASSWORD` (cuenta para el bloqueo), `REAUTHENTICATION_REQUIRED` |
+| `POST /mfa/setup/confirm` | `{code}` | `{recoveryCodes[10]}` |
 | `POST /mfa/disable` | `{code}` | — (solo clientes) |
 | `POST /mfa/recovery-codes` | `{code}` | `{recoveryCodes}` nuevos |
 | `POST /delete` | `{currentPassword, mfaCode?}` | — (borra y cierra sesión) |
@@ -141,3 +142,6 @@ Errores: `CANNOT_MODIFY_OWN_ACCOUNT`, `LAST_SUPER_ADMIN`, `NOT_A_STAFF_ACCOUNT`,
 - Login social: `?error=SOCIAL_EMAIL_NOT_VERIFIED` también para cuentas de Google que no son Gmail ni Workspace.
 - `GET /api/account/export`: `securityEvents[].ip` / `userAgent` son `null` cuando la acción la hizo otra persona.
 - Los enlaces de email (`/password/reset`, `/email-change/confirm`) dan `INVALID_OR_EXPIRED_TOKEN` si la contraseña o el email cambiaron después de enviarlos.
+- Subir logo (empresa y app) → `400 IMAGE_DIMENSIONS_TOO_LARGE` (más de 4096 px de ancho o alto) o `400 IMAGE_UNREADABLE`. La imagen se guarda sin metadatos (EXIF/GPS).
+- Login: el paso del código caduca a los 10 min de poner la contraseña → `NO_PENDING_LOGIN` (volver a pedir la contraseña).
+- `POST/PUT /api/admin/clients`: en producción solo URIs https (`INVALID_REDIRECT_URI` para http://localhost o con usuario:contraseña).

@@ -18,6 +18,7 @@ import com.cherrycore.support.BrowserSession;
 import com.cherrycore.support.IntegrationTest;
 import com.cherrycore.support.JsonBodies;
 import com.cherrycore.support.StaffFixtures;
+import com.cherrycore.support.TestImages;
 
 /**
  * Logo de las apps del catálogo y marca pública que ve el login ({@code ?client_id=}).
@@ -25,7 +26,7 @@ import com.cherrycore.support.StaffFixtures;
 @IntegrationTest
 class AppBrandingIntegrationTest {
 
-    private static final byte[] PNG = {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0};
+    private static final byte[] PNG = TestImages.png(8, 8);
 
     @Autowired
     private MockMvc mockMvc;
