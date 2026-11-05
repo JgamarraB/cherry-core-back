@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.cherrycore.identity.application.port.AccountRepository;
+import com.cherrycore.identity.application.port.AccountSessionRevoker;
 import com.cherrycore.identity.application.port.FederatedIdentityRepository;
 import com.cherrycore.identity.domain.Account;
 import com.cherrycore.identity.domain.AccountType;
@@ -37,14 +38,17 @@ public class SocialLoginService {
 
     private final FederatedIdentityRepository identities;
     private final AccountRepository accounts;
+    private final AccountSessionRevoker sessionRevoker;
     private final AuthEventLogger eventLogger;
     private final IdentitySettings settings;
     private final Clock clock;
 
     public SocialLoginService(FederatedIdentityRepository identities, AccountRepository accounts,
-            AuthEventLogger eventLogger, IdentitySettings settings, Clock clock) {
+            AccountSessionRevoker sessionRevoker, AuthEventLogger eventLogger, IdentitySettings settings,
+            Clock clock) {
         this.identities = identities;
         this.accounts = accounts;
+        this.sessionRevoker = sessionRevoker;
         this.eventLogger = eventLogger;
         this.settings = settings;
         this.clock = clock;
@@ -52,9 +56,8 @@ public class SocialLoginService {
 
     @Transactional
     public SocialLoginResult signIn(SocialProfile profile, AccountType type, RequestContext context) {
-        Optional<Account> linked = identities.findByProviderAndSubject(profile.provider(), profile.subject())
-                .flatMap(identity -> accounts.findById(identity.accountId()))
-                .filter(account -> account.type() == type);
+        Optional<Account> linked = identities.findByProviderAndSubject(profile.provider(), profile.subject(), type)
+                .flatMap(identity -> accounts.findById(identity.accountId()));
         if (linked.isPresent()) {
             return signedIn(linked.get(), AuthEventType.SOCIAL_LOGIN, context);
         }
@@ -67,11 +70,17 @@ public class SocialLoginService {
         if (byEmail.isPresent()) {
             Account account = byEmail.get();
             if (account.isPendingVerification()) {
-                // El proveedor acaba de demostrar que el email es suyo.
+                /*
+                 * El proveedor demuestra que el email es de esta persona. La
+                 * contraseña de una cuenta sin verificar pudo ponerla cualquiera
+                 * (registro con un email ajeno): se elimina y se cierran sesiones.
+                 */
+                account.removePassword();
                 account.verifyEmail(clock.instant());
                 accounts.save(account);
+                sessionRevoker.revokeAll(account.id());
             }
-            link(account.id(), profile);
+            link(account.id(), type, profile);
             return signedIn(account, AuthEventType.SOCIAL_ACCOUNT_LINKED, context);
         }
 
@@ -94,7 +103,7 @@ public class SocialLoginService {
         Account account = Account.newSocialCustomer(UuidV7.generate(clock), email, settings.resolveLocale(locale),
                 clock.instant());
         accounts.save(account);
-        link(account.id(), profile);
+        link(account.id(), AccountType.CUSTOMER, profile);
         eventLogger.log(AuthEventType.ACCOUNT_REGISTERED, account.id(), context);
         return account;
     }
@@ -104,8 +113,8 @@ public class SocialLoginService {
         identities.deleteByAccount(accountId);
     }
 
-    private void link(UUID accountId, SocialProfile profile) {
-        identities.save(new FederatedIdentity(UuidV7.generate(clock), accountId, profile.provider(),
+    private void link(UUID accountId, AccountType type, SocialProfile profile) {
+        identities.save(new FederatedIdentity(UuidV7.generate(clock), accountId, type, profile.provider(),
                 profile.subject(), profile.email()));
     }
 

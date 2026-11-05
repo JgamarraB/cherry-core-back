@@ -9,13 +9,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import com.cherrycore.identity.application.port.FederatedIdentityRepository;
+import com.cherrycore.identity.domain.AccountType;
 import com.cherrycore.identity.domain.FederatedIdentity;
 import com.cherrycore.identity.domain.SocialProvider;
 import com.cherrycore.shared.infrastructure.security.CurrentAccount;
 
 interface FederatedIdentityJpaRepository extends JpaRepository<FederatedIdentityJpaEntity, UUID> {
 
-    Optional<FederatedIdentityJpaEntity> findByProviderAndProviderSubject(SocialProvider provider, String subject);
+    Optional<FederatedIdentityJpaEntity> findByProviderAndProviderSubjectAndAccountType(SocialProvider provider,
+            String subject, AccountType accountType);
 
     List<FederatedIdentityJpaEntity> findByAccountId(UUID accountId);
 }
@@ -32,8 +34,9 @@ class FederatedIdentityPersistenceAdapter implements FederatedIdentityRepository
     }
 
     @Override
-    public Optional<FederatedIdentity> findByProviderAndSubject(SocialProvider provider, String subject) {
-        return jpaRepository.findByProviderAndProviderSubject(provider, subject)
+    public Optional<FederatedIdentity> findByProviderAndSubject(SocialProvider provider, String subject,
+            AccountType type) {
+        return jpaRepository.findByProviderAndProviderSubjectAndAccountType(provider, subject, type)
                 .map(FederatedIdentityPersistenceAdapter::toDomain);
     }
 
@@ -46,7 +49,7 @@ class FederatedIdentityPersistenceAdapter implements FederatedIdentityRepository
     @Override
     public void save(FederatedIdentity identity) {
         jpaRepository.saveAndFlush(new FederatedIdentityJpaEntity(identity.id(), identity.accountId(),
-                identity.provider(), identity.subject(), identity.emailAtLink()));
+                identity.accountType(), identity.provider(), identity.subject(), identity.emailAtLink()));
     }
 
     @Override
@@ -59,7 +62,8 @@ class FederatedIdentityPersistenceAdapter implements FederatedIdentityRepository
     }
 
     private static FederatedIdentity toDomain(FederatedIdentityJpaEntity entity) {
-        return new FederatedIdentity(entity.getId(), entity.getAccountId(), entity.getProvider(),
+        return new FederatedIdentity(entity.getId(), entity.getAccountId(), entity.getAccountType(),
+                entity.getProvider(),
                 entity.getProviderSubject(), entity.getEmailAtLink());
     }
 }

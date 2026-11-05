@@ -17,6 +17,7 @@ public final class SecurityPaths {
     public static final String AUTH_API = "/api/auth/**";
     public static final String AUTH_API_PREFIX = "/api/auth/";
     public static final String ACCOUNT_API = "/api/account/**";
+    public static final String ACCOUNT_API_PREFIX = "/api/account";
     public static final String COMPANY_API = "/api/company/**";
     public static final String COMPANY_API_ROOT = "/api/company";
     public static final String ADMIN_API = "/api/admin/**";

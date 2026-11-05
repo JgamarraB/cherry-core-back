@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.cherrycore.company.application.port.CompanyNotifier;
 import com.cherrycore.company.application.port.CompanyNotifier.Recipient;
+import com.cherrycore.company.application.port.CompanyRepository;
 import com.cherrycore.company.application.port.StaffUserRepository;
 import com.cherrycore.company.domain.Company;
 import com.cherrycore.company.domain.CompanyErrorCode;
@@ -32,14 +33,17 @@ public class CompanyRegistrationService {
     private final AccountRegistrationService accountRegistration;
     private final AccountQueryService accounts;
     private final StaffUserRepository staffUsers;
+    private final CompanyRepository companies;
     private final CompanySetup setup;
     private final CompanyNotifier notifier;
 
     public CompanyRegistrationService(AccountRegistrationService accountRegistration, AccountQueryService accounts,
-            StaffUserRepository staffUsers, CompanySetup setup, CompanyNotifier notifier) {
+            StaffUserRepository staffUsers, CompanyRepository companies, CompanySetup setup,
+            CompanyNotifier notifier) {
         this.accountRegistration = accountRegistration;
         this.accounts = accounts;
         this.staffUsers = staffUsers;
+        this.companies = companies;
         this.setup = setup;
         this.notifier = notifier;
     }
@@ -59,6 +63,10 @@ public class CompanyRegistrationService {
         PersonName lastName = PersonName.of(command.ownerLastName());
         PhoneNumber phone = command.ownerPhone() == null || command.ownerPhone().isBlank()
                 ? null : PhoneNumber.of(command.ownerPhone());
+        // Antes de mirar el email: así la respuesta no depende de si la cuenta existe.
+        if (companies.existsByTaxId(profile.country(), profile.taxId(), null)) {
+            throw new DomainException(CompanyErrorCode.TAX_ID_ALREADY_REGISTERED);
+        }
 
         accountRegistration.registerStaff(command.ownerEmail(), command.ownerPassword(), command.locale(), context)
                 .ifPresent(account -> {

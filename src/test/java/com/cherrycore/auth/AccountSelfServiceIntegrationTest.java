@@ -84,6 +84,17 @@ class AccountSelfServiceIntegrationTest {
     }
 
     @Test
+    void guessingTheCurrentPasswordLocksTheAccount() throws Exception {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            session.call(HttpMethod.PUT, "/api/account/password", "{\"currentPassword\": \"intento-" + attempt
+                    + "-xx\", \"newPassword\": \"" + NEW_PASSWORD + "\"}");
+        }
+        mailbox.awaitEmail(email, CustomerFixtures.LOCKED_SUBJECT_ES);
+
+        assertThat(new BrowserSession(mockMvc).login(email, PASSWORD).getResponse().getStatus()).isEqualTo(401);
+    }
+
+    @Test
     void emailChangeIsConfirmedFromTheNewAddress() throws Exception {
         String newEmail = CustomerFixtures.uniqueEmail();
 

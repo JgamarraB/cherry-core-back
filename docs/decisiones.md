@@ -38,6 +38,10 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - **No se revela si un email existe**: mismo error y mismo tiempo de respuesta en login; 202 siempre en registro, reenvío y "olvidé mi contraseña".
 - **Bloqueo** de 15 min tras 5 fallos (con aviso por email) + **límite de peticiones por IP**.
 - Cambiar la contraseña **cierra todas las sesiones** y anula los refresh tokens.
+- El contador de fallos es **de la cuenta**: contraseña, códigos MFA y reautenticaciones de "mi cuenta" suman en el mismo contador (repetir el login no da más intentos).
+- Cambios sensibles (contraseña, email, borrado) piden la contraseña actual; las cuentas sin contraseña (solo login social) necesitan haber entrado en los últimos 10 minutos.
+- Límite de peticiones por IP (las IPv6 se agrupan por bloque /64) en `/api/auth` y `/api/account`.
+- Una cuenta **sin verificar** pudo crearla cualquiera con un email ajeno: si después se vincula por login social, su contraseña se elimina.
 
 ## D4 · CherryCore es nuestro Identity Provider — 2026-11-05
 

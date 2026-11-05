@@ -16,6 +16,7 @@ import com.cherrycore.company.application.CompanyReviewService;
 import com.cherrycore.identity.infrastructure.web.AuthPaths;
 import com.cherrycore.support.BrowserSession;
 import com.cherrycore.support.CapturingEmailSender;
+import com.cherrycore.support.CustomerFixtures;
 import com.cherrycore.support.IntegrationTest;
 import com.cherrycore.support.JsonBodies;
 import com.cherrycore.support.StaffFixtures;
@@ -105,6 +106,43 @@ class StaffLoginAndMfaIntegrationTest {
         MvcResult afterLimit = attacker.postJson(AuthPaths.MFA_VERIFY,
                 "{\"code\": \"" + TotpCodes.code(secret, 1) + "\"}");
         assertThat(JsonBodies.<String>read(afterLimit, "$.error.code")).isEqualTo("NO_PENDING_LOGIN");
+    }
+
+    @Test
+    void mfaFailuresAcrossSeveralLoginsLockTheAccount() throws Exception {
+        String email = StaffFixtures.registerCompany(browser, mailbox, "Taller Seis");
+        StaffFixtures.firstLoginWithMfaSetup(browser, email);
+
+        // 3 fallos en un login y 2 en otro: el contador es de la cuenta, no del intento.
+        for (int round = 0; round < 2; round++) {
+            BrowserSession attacker = new BrowserSession(mockMvc);
+            attacker.postJson(AuthPaths.STAFF_LOGIN, StaffFixtures.loginBody(email));
+            for (int attempt = 0; attempt < (round == 0 ? 3 : 2); attempt++) {
+                attacker.postJson(AuthPaths.MFA_VERIFY, "{\"code\": \"000000\"}");
+            }
+        }
+        mailbox.awaitEmail(email, CustomerFixtures.LOCKED_SUBJECT_ES);
+
+        // Bloqueada: ni con la contraseña correcta.
+        MvcResult login = new BrowserSession(mockMvc).postJson(AuthPaths.STAFF_LOGIN, StaffFixtures.loginBody(email));
+        assertThat(JsonBodies.<String>read(login, "$.error.code")).isEqualTo("INVALID_CREDENTIALS");
+    }
+
+    @Test
+    void companyRegistrationDoesNotRevealWhetherAnEmailExists() throws Exception {
+        String existingOwner = StaffFixtures.registerCompany(browser, mailbox, "Taller Siete");
+        String takenTaxId = jdbc.sql("SELECT c.tax_id FROM companies c JOIN memberships m ON m.company_id = c.id"
+                + " JOIN accounts a ON a.id = m.staff_user_id WHERE a.email = ?")
+                .param(existingOwner).query(String.class).single();
+
+        MvcResult withExistingEmail = browser.postJson(AuthPaths.COMPANY_REGISTER,
+                StaffFixtures.registerCompanyBody(existingOwner, takenTaxId, "Copia"));
+        MvcResult withNewEmail = browser.postJson(AuthPaths.COMPANY_REGISTER,
+                StaffFixtures.registerCompanyBody(CustomerFixtures.uniqueEmail(), takenTaxId, "Copia"));
+
+        assertThat(withExistingEmail.getResponse().getContentAsString())
+                .isEqualTo(withNewEmail.getResponse().getContentAsString());
+        assertThat(JsonBodies.<String>read(withNewEmail, "$.error.code")).isEqualTo("TAX_ID_ALREADY_REGISTERED");
     }
 
     @Test

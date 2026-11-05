@@ -15,6 +15,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.oauth2.client.endpoint.RestClientAuthorizationCodeTokenResponseClient;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
+import org.springframework.security.oauth2.client.web.OAuth2LoginAuthenticationFilter;
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
@@ -85,10 +86,12 @@ public class SocialLoginConfig {
                         .tokenEndpoint(endpoint -> endpoint.accessTokenResponseClient(tokenClient))
                         .successHandler(handlers)
                         .failureHandler(handlers))
+                // Apple (form_post): POST entre sitios -> GET con la cookie de sesión.
+                .addFilterBefore(new FormPostCallbackRedirectFilter(), OAuth2LoginAuthenticationFilter.class)
                 // La sesión de Google/Apple nunca se guarda como sesión de CherryCore.
                 .securityContext(context -> context.securityContextRepository(
                         new RequestAttributeSecurityContextRepository()))
-                // Apple vuelve con un POST (form_post): el parámetro "state" de OAuth protege contra CSRF.
+                // El parámetro "state" de OAuth protege la vuelta contra CSRF.
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .headers(securityHeaders::apply)

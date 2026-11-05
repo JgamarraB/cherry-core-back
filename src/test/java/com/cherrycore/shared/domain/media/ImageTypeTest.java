@@ -20,6 +20,12 @@ class ImageTypeTest {
     }
 
     @Test
+    void webpNeedsTheRiffContainer() {
+        byte[] fakeWebp = "XXXX\0\0\0\0WEBP<script>".getBytes(StandardCharsets.ISO_8859_1);
+        assertThat(ImageType.detect(fakeWebp)).isEmpty();
+    }
+
+    @Test
     void rejectsSvgAndOtherContent() {
         byte[] svg = "<svg onload=\"alert(1)\"></svg>".getBytes(StandardCharsets.UTF_8);
         assertThat(ImageType.detect(svg)).isEmpty();

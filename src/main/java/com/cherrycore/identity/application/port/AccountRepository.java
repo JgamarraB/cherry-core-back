@@ -12,6 +12,11 @@ public interface AccountRepository {
 
     Optional<Account> findById(UUID id);
 
+    /**
+     * Bloquea la fila: los contadores de intentos no se pisan con peticiones simultáneas.
+     */
+    Optional<Account> findByIdForUpdate(UUID id);
+
     Optional<Account> findByTypeAndEmail(AccountType type, EmailAddress email);
 
     /**

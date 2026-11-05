@@ -11,6 +11,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -19,6 +20,7 @@ import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 import com.cherrycore.auth.infrastructure.social.SocialController;
 import com.cherrycore.company.application.CompanyReviewService;
@@ -132,6 +134,45 @@ class SocialLoginIntegrationTest {
                 googleToken("g-" + UUID.randomUUID(), owner.email(), true));
 
         assertThat(response.getRedirectedUrl()).isEqualTo("http://localhost:4200/login?status=MFA_REQUIRED");
+    }
+
+    @Test
+    void preRegisteredAccountCannotBeHijackedThroughSocialLogin() throws Exception {
+        // Un atacante registra el email de la víctima con SU contraseña y no lo verifica.
+        String victimEmail = CustomerFixtures.uniqueEmail();
+        CustomerFixtures.register(new BrowserSession(mockMvc), victimEmail);
+
+        // La víctima entra con Google (que garantiza que el email es suyo).
+        assertThat(socialLogin.signIn(profile("g-" + UUID.randomUUID(), victimEmail, true), AccountType.CUSTOMER,
+                CONTEXT)).isInstanceOf(SocialLoginResult.SignedIn.class);
+
+        // La contraseña que puso el atacante ya no sirve.
+        MvcResult attacker = new BrowserSession(mockMvc).login(victimEmail, CustomerFixtures.PASSWORD);
+        assertThat(attacker.getResponse().getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void sameGoogleAccountCanBeLinkedToCustomerAndStaffAccounts() throws Exception {
+        StaffFixtures.Owner owner = StaffFixtures.activeCompany(mockMvc, mailbox, review, "Doble Cuenta");
+        CustomerFixtures.register(new BrowserSession(mockMvc), owner.email());
+        String subject = "g-" + UUID.randomUUID();
+
+        assertThat(socialLogin.signIn(profile(subject, owner.email(), true), AccountType.CUSTOMER, CONTEXT))
+                .isInstanceOf(SocialLoginResult.SignedIn.class);
+        assertThat(socialLogin.signIn(profile(subject, owner.email(), true), AccountType.STAFF, CONTEXT))
+                .isInstanceOf(SocialLoginResult.SignedIn.class);
+    }
+
+    @Test
+    void appleFormPostCallbackIsTurnedIntoAGetThatCarriesTheSessionCookie() throws Exception {
+        MvcResult result = mockMvc.perform(MockMvcRequestBuilders.post("/login/oauth2/code/apple")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .param("code", "c0de").param("state", "st+te").param("id_token", "secret-token")).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(303);
+        assertThat(result.getResponse().getHeader("Location"))
+                .isEqualTo("/login/oauth2/code/apple?code=c0de&state=st%2Bte")
+                .doesNotContain("secret-token");
     }
 
     private static SocialProfile profile(String subject, String email, boolean verified) {

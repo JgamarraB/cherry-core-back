@@ -32,6 +32,11 @@ class AccountPersistenceAdapter implements AccountRepository {
     }
 
     @Override
+    public Optional<Account> findByIdForUpdate(UUID id) {
+        return jpaRepository.findWithLockById(id).map(AccountPersistenceAdapter::toDomain);
+    }
+
+    @Override
     public Optional<Account> findByTypeAndEmail(AccountType type, EmailAddress email) {
         return jpaRepository.findByTypeAndEmail(type, email.value()).map(AccountPersistenceAdapter::toDomain);
     }

@@ -10,6 +10,7 @@ import com.cherrycore.auth.infrastructure.web.LoginDtos.MfaSetupConfirmed;
 import com.cherrycore.company.application.StaffTenantService;
 import com.cherrycore.company.application.TenantOption;
 import com.cherrycore.company.domain.CompanyErrorCode;
+import com.cherrycore.identity.application.AccountLockoutService;
 import com.cherrycore.identity.application.AccountQueryService;
 import com.cherrycore.identity.application.AuthEventLogger;
 import com.cherrycore.identity.application.AuthenticatedAccount;
@@ -43,9 +44,11 @@ public class LoginFlow {
     private final StaffTenantService tenants;
     private final SessionLoginHandler session;
     private final AuthEventLogger eventLogger;
+    private final AccountLockoutService lockout;
 
     LoginFlow(MfaService mfa, AccountQueryService accounts, StaffTenantService tenants, SessionLoginHandler session,
-            AuthEventLogger eventLogger) {
+            AuthEventLogger eventLogger, AccountLockoutService lockout) {
+        this.lockout = lockout;
         this.mfa = mfa;
         this.accounts = accounts;
         this.tenants = tenants;
@@ -73,10 +76,12 @@ public class LoginFlow {
 
     LoginResponse verifyMfa(String code, HttpServletRequest request, HttpServletResponse response) {
         PendingLogin pending = pending(request);
-        if (!mfa.verify(pending.accountId(), code)) {
+        // Bloqueada (también por fallos de MFA de logins anteriores): ningún código vale.
+        if (lockout.isLocked(pending.accountId()) || !mfa.verify(pending.accountId(), code)) {
             PendingLogin failed = pending.withFailedAttempt();
-            eventLogger.log(AuthEventType.MFA_FAILED, pending.accountId(), RequestContextResolver.from(request));
-            if (failed.failedMfaAttempts() >= MAX_MFA_ATTEMPTS) {
+            lockout.recordFailure(pending.accountId(), AuthEventType.MFA_FAILED,
+                    RequestContextResolver.from(request));
+            if (failed.failedMfaAttempts() >= MAX_MFA_ATTEMPTS || lockout.isLocked(pending.accountId())) {
                 request.getSession().removeAttribute(PendingLogin.SESSION_ATTRIBUTE);
             } else {
                 request.getSession().setAttribute(PendingLogin.SESSION_ATTRIBUTE, failed);
@@ -84,6 +89,7 @@ public class LoginFlow {
             throw new DomainException(IdentityErrorCode.INVALID_MFA_CODE);
         }
         request.getSession().removeAttribute(PendingLogin.SESSION_ATTRIBUTE);
+        lockout.recordSuccess(pending.accountId());
         return finish(pending.accountId(), pending.type(), pending.superAdmin(), pending.primaryFactor(), true,
                 request, response);
     }
@@ -96,6 +102,7 @@ public class LoginFlow {
         PendingLogin pending = pending(request);
         List<String> recoveryCodes = mfa.confirmEnrollment(pending.accountId(), code);
         request.getSession().removeAttribute(PendingLogin.SESSION_ATTRIBUTE);
+        lockout.recordSuccess(pending.accountId());
         LoginResponse login = finish(pending.accountId(), pending.type(), pending.superAdmin(),
                 pending.primaryFactor(), true, request, response);
         return new MfaSetupConfirmed(recoveryCodes, login);

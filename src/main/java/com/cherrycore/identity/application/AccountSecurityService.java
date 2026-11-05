@@ -42,6 +42,7 @@ public class AccountSecurityService {
     private final AccountSessionRevoker sessionRevoker;
     private final FederatedIdentityRepository federatedIdentities;
     private final MfaService mfa;
+    private final AccountLockoutService lockout;
     private final IdentityNotifier notifier;
     private final AuthEventLogger eventLogger;
     private final ApplicationEventPublisher events;
@@ -51,7 +52,7 @@ public class AccountSecurityService {
     public AccountSecurityService(AccountRepository accounts, PasswordHasher passwordHasher,
             OneTimeTokenIssuer tokenIssuer, OneTimeTokenRepository tokenRepository, SecureTokenService tokenService,
             AccountSessionRevoker sessionRevoker, FederatedIdentityRepository federatedIdentities, MfaService mfa,
-            IdentityNotifier notifier,
+            AccountLockoutService lockout, IdentityNotifier notifier,
             AuthEventLogger eventLogger, ApplicationEventPublisher events, IdentitySettings settings, Clock clock) {
         this.accounts = accounts;
         this.passwordHasher = passwordHasher;
@@ -61,6 +62,7 @@ public class AccountSecurityService {
         this.sessionRevoker = sessionRevoker;
         this.federatedIdentities = federatedIdentities;
         this.mfa = mfa;
+        this.lockout = lockout;
         this.notifier = notifier;
         this.eventLogger = eventLogger;
         this.events = events;
@@ -73,9 +75,9 @@ public class AccountSecurityService {
      */
     @Transactional
     public void changePassword(UUID accountId, String currentPassword, String newPassword, String keepSessionId,
-            RequestContext context) {
+            boolean recentlyAuthenticated, RequestContext context) {
         Account account = activeAccount(accountId);
-        requirePassword(account, currentPassword);
+        requirePassword(account, currentPassword, recentlyAuthenticated, context);
         settings.passwordPolicy().validate(newPassword, account.email());
         account.changePassword(passwordHasher.hash(newPassword));
         accounts.save(account);
@@ -89,9 +91,9 @@ public class AccountSecurityService {
      */
     @Transactional
     public void requestEmailChange(UUID accountId, String currentPassword, String rawNewEmail,
-            RequestContext context) {
+            boolean recentlyAuthenticated, RequestContext context) {
         Account account = activeAccount(accountId);
-        requirePassword(account, currentPassword);
+        requirePassword(account, currentPassword, recentlyAuthenticated, context);
         EmailAddress newEmail = EmailAddress.of(rawNewEmail);
         if (newEmail.equals(account.email())) {
             throw new DomainException(IdentityErrorCode.EMAIL_UNCHANGED);
@@ -132,10 +134,12 @@ public class AccountSecurityService {
      * @param mfaCode obligatorio si la cuenta tiene MFA activado
      */
     @Transactional
-    public void deleteAccount(UUID accountId, String currentPassword, String mfaCode, RequestContext context) {
+    public void deleteAccount(UUID accountId, String currentPassword, String mfaCode, boolean recentlyAuthenticated,
+            RequestContext context) {
         Account account = activeAccount(accountId);
-        requirePassword(account, currentPassword);
+        requirePassword(account, currentPassword, recentlyAuthenticated, context);
         if (mfa.isEnabled(accountId) && !mfa.verify(accountId, mfaCode)) {
+            lockout.recordFailure(accountId, AuthEventType.MFA_FAILED, context);
             throw new DomainException(IdentityErrorCode.INVALID_MFA_CODE);
         }
         EmailAddress originalEmail = account.email();
@@ -160,11 +164,20 @@ public class AccountSecurityService {
     }
 
     /*
-     * Las cuentas creadas solo con login social no tienen contraseña: para
-     * ellas basta la sesión (y el MFA si lo tienen).
+     * Reautenticación para cambios sensibles. Los fallos cuentan para el
+     * bloqueo de la cuenta. Las cuentas sin contraseña (solo login social)
+     * deben haber entrado hace poco.
      */
-    private void requirePassword(Account account, String currentPassword) {
-        if (account.hasPassword() && !passwordHasher.matches(currentPassword, account.passwordHash())) {
+    private void requirePassword(Account account, String currentPassword, boolean recentlyAuthenticated,
+            RequestContext context) {
+        if (!account.hasPassword()) {
+            if (!recentlyAuthenticated) {
+                throw new DomainException(IdentityErrorCode.REAUTHENTICATION_REQUIRED);
+            }
+            return;
+        }
+        if (lockout.isLocked(account) || !passwordHasher.matches(currentPassword, account.passwordHash())) {
+            lockout.recordFailure(account.id(), AuthEventType.REAUTHENTICATION_FAILED, context);
             throw new DomainException(IdentityErrorCode.WRONG_CURRENT_PASSWORD);
         }
     }

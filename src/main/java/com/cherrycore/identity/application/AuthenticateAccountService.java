@@ -41,10 +41,13 @@ public class AuthenticateAccountService {
     private final IdentityNotifier notifier;
     private final AuthEventLogger eventLogger;
     private final IdentitySettings settings;
+    private final MfaService mfa;
     private final Clock clock;
 
     public AuthenticateAccountService(AccountRepository accountRepository, PasswordHasher passwordHasher,
-            IdentityNotifier notifier, AuthEventLogger eventLogger, IdentitySettings settings, Clock clock) {
+            IdentityNotifier notifier, AuthEventLogger eventLogger, IdentitySettings settings, MfaService mfa,
+            Clock clock) {
+        this.mfa = mfa;
         this.accountRepository = accountRepository;
         this.passwordHasher = passwordHasher;
         this.notifier = notifier;
@@ -88,8 +91,11 @@ public class AuthenticateAccountService {
             throw new DomainException(IdentityErrorCode.EMAIL_NOT_VERIFIED);
         }
 
-        account.registerSuccessfulLogin(now);
-        accountRepository.save(account);
+        // Con MFA, el contador de fallos no se reinicia hasta superar el segundo factor.
+        if (!MfaService.isMandatoryFor(account.type()) && !mfa.isEnabled(account.id())) {
+            account.registerSuccessfulLogin(now);
+            accountRepository.save(account);
+        }
         eventLogger.log(AuthEventType.LOGIN_SUCCEEDED, account.id(), context);
         return new AuthenticatedAccount(account.id(), account.type());
     }

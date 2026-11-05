@@ -189,6 +189,14 @@ public class Account {
         emailVerifiedAt = now;
     }
 
+    /**
+     * Quita la contraseña (la cuenta solo podrá entrar por login social o tras
+     * "olvidé mi contraseña").
+     */
+    public void removePassword() {
+        passwordHash = null;
+    }
+
     public void changePassword(String newPasswordHash) {
         passwordHash = Objects.requireNonNull(newPasswordHash);
     }

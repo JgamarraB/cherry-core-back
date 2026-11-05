@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import org.hibernate.annotations.SQLRestriction;
 
+import com.cherrycore.identity.domain.AccountType;
 import com.cherrycore.identity.domain.SocialProvider;
 import com.cherrycore.shared.infrastructure.persistence.AuditableJpaEntity;
 import com.cherrycore.shared.infrastructure.persistence.SoftDelete;
@@ -23,6 +24,10 @@ public class FederatedIdentityJpaEntity extends AuditableJpaEntity {
     private UUID accountId;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "account_type", nullable = false, updatable = false)
+    private AccountType accountType;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "provider", nullable = false, updatable = false)
     private SocialProvider provider;
 
@@ -35,10 +40,11 @@ public class FederatedIdentityJpaEntity extends AuditableJpaEntity {
     protected FederatedIdentityJpaEntity() {
     }
 
-    public FederatedIdentityJpaEntity(UUID id, UUID accountId, SocialProvider provider, String providerSubject,
-            String emailAtLink) {
+    public FederatedIdentityJpaEntity(UUID id, UUID accountId, AccountType accountType, SocialProvider provider,
+            String providerSubject, String emailAtLink) {
         super(id);
         this.accountId = accountId;
+        this.accountType = accountType;
         this.provider = provider;
         this.providerSubject = providerSubject;
         this.emailAtLink = emailAtLink;
@@ -46,6 +52,10 @@ public class FederatedIdentityJpaEntity extends AuditableJpaEntity {
 
     public UUID getAccountId() {
         return accountId;
+    }
+
+    public AccountType getAccountType() {
+        return accountType;
     }
 
     public SocialProvider getProvider() {

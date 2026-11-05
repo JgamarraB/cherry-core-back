@@ -76,6 +76,10 @@ class SuperAdminBootstrap implements ApplicationRunner {
                         null));
                 return created;
             });
+            if (admin.isPendingVerification()) {
+                // Una cuenta sin verificar pudo crearla cualquiera: su contraseña no vale.
+                admin.removePassword();
+            }
             admin.grantPlatformRole(PlatformRole.SUPER_ADMIN);
             accounts.save(admin);
             passwordReset.requestFor(admin.id(), SYSTEM);

@@ -21,6 +21,7 @@ import com.cherrycore.identity.application.port.SecretEncryptor;
 import com.cherrycore.identity.application.port.SecureTokenService;
 import com.cherrycore.identity.domain.Account;
 import com.cherrycore.identity.domain.AccountType;
+import com.cherrycore.identity.domain.AuthEventType;
 import com.cherrycore.identity.domain.Base32;
 import com.cherrycore.identity.domain.IdentityErrorCode;
 import com.cherrycore.identity.domain.MfaFactor;
@@ -43,17 +44,20 @@ public class MfaService {
     private static final String RECOVERY_SEPARATOR = "-";
     private static final int RECOVERY_GROUP = 5;
     private static final String NOTHING = "";
+    private static final RequestContext ANONYMOUS_CONTEXT = new RequestContext(null, null);
 
     private final MfaRepository mfaRepository;
     private final AccountRepository accounts;
     private final SecretEncryptor encryptor;
     private final SecureTokenService hasher;
     private final IdentitySettings settings;
+    private final AccountLockoutService lockout;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
 
     public MfaService(MfaRepository mfaRepository, AccountRepository accounts, SecretEncryptor encryptor,
-            SecureTokenService hasher, IdentitySettings settings, Clock clock) {
+            SecureTokenService hasher, IdentitySettings settings, AccountLockoutService lockout, Clock clock) {
+        this.lockout = lockout;
         this.mfaRepository = mfaRepository;
         this.accounts = accounts;
         this.encryptor = encryptor;
@@ -165,7 +169,8 @@ public class MfaService {
         if (!isEnabled(accountId)) {
             throw new DomainException(IdentityErrorCode.MFA_NOT_ENABLED);
         }
-        if (!verify(accountId, code)) {
+        if (lockout.isLocked(accountId) || !verify(accountId, code)) {
+            lockout.recordFailure(accountId, AuthEventType.MFA_FAILED, ANONYMOUS_CONTEXT);
             throw new DomainException(IdentityErrorCode.INVALID_MFA_CODE);
         }
     }

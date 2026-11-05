@@ -1,10 +1,15 @@
 package com.cherrycore.auth.infrastructure.web;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.authority.FactorGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -68,6 +73,8 @@ public class AccountController {
     public static final String MFA_RECOVERY_CODES = "/mfa/recovery-codes";
     public static final String DELETE = "/delete";
 
+    private static final Duration REAUTHENTICATION_WINDOW = Duration.ofMinutes(10);
+
     private final AccountQueryService accounts;
     private final AccountSecurityService security;
     private final MfaService mfa;
@@ -76,10 +83,12 @@ public class AccountController {
     private final AccountSessions sessions;
     private final SessionLoginHandler sessionHandler;
     private final AuthEventLogger eventLogger;
+    private final Clock clock;
 
     AccountController(AccountQueryService accounts, AccountSecurityService security, MfaService mfa,
             CustomerProfileService customerProfiles, StaffProfileService staffProfiles, AccountSessions sessions,
-            SessionLoginHandler sessionHandler, AuthEventLogger eventLogger) {
+            SessionLoginHandler sessionHandler, AuthEventLogger eventLogger, Clock clock) {
+        this.clock = clock;
         this.accounts = accounts;
         this.security = security;
         this.mfa = mfa;
@@ -116,7 +125,7 @@ public class AccountController {
     public ApiSuccessResponse<Void> changePassword(@Valid @RequestBody ChangePasswordRequest body,
             HttpServletRequest request) {
         security.changePassword(currentAccount(), body.currentPassword(), body.newPassword(),
-                request.getSession().getId(), RequestContextResolver.from(request));
+                request.getSession().getId(), recentlyAuthenticated(), RequestContextResolver.from(request));
         return ApiSuccessResponse.of(null);
     }
 
@@ -128,7 +137,7 @@ public class AccountController {
     public ApiSuccessResponse<Void> changeEmail(@Valid @RequestBody ChangeEmailRequest body,
             HttpServletRequest request) {
         security.requestEmailChange(currentAccount(), body.currentPassword(), body.newEmail(),
-                RequestContextResolver.from(request));
+                recentlyAuthenticated(), RequestContextResolver.from(request));
         return ApiSuccessResponse.of(null);
     }
 
@@ -182,7 +191,7 @@ public class AccountController {
     @PostMapping(DELETE)
     public ApiSuccessResponse<Void> deleteAccount(@Valid @RequestBody DeleteAccountRequest body,
             HttpServletRequest request) {
-        security.deleteAccount(currentAccount(), body.currentPassword(), body.mfaCode(),
+        security.deleteAccount(currentAccount(), body.currentPassword(), body.mfaCode(), recentlyAuthenticated(),
                 RequestContextResolver.from(request));
         sessionHandler.logout(request);
         return ApiSuccessResponse.of(null);
@@ -206,6 +215,18 @@ public class AccountController {
         return new AccountOverview(account.id(), account.type().name(), account.email().value(),
                 account.emailVerifiedAt() != null, account.locale().toLanguageTag(), firstName, lastName, phone,
                 account.isSuperAdmin(), mfa.status(account.id()));
+    }
+
+    /**
+     * Ha iniciado sesión (primer factor) hace menos de {@link #REAUTHENTICATION_WINDOW}.
+     * Lo necesitan las cuentas sin contraseña para cambios sensibles.
+     */
+    private boolean recentlyAuthenticated() {
+        Instant threshold = clock.instant().minus(REAUTHENTICATION_WINDOW);
+        return SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                .filter(FactorGrantedAuthority.class::isInstance)
+                .map(authority -> ((FactorGrantedAuthority) authority).getIssuedAt())
+                .anyMatch(issuedAt -> issuedAt != null && issuedAt.isAfter(threshold));
     }
 
     private static UUID currentAccount() {

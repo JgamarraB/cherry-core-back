@@ -28,6 +28,7 @@ public enum IdentityErrorCode implements ErrorCode {
     MFA_SETUP_NOT_STARTED(ErrorCategory.BUSINESS_RULE, "Two-step verification setup has not been started"),
     NO_PENDING_LOGIN(ErrorCategory.UNAUTHENTICATED, "No sign-in in progress, sign in again"),
     WRONG_CURRENT_PASSWORD(ErrorCategory.INVALID_INPUT, "Current password is not correct"),
+    REAUTHENTICATION_REQUIRED(ErrorCategory.UNAUTHENTICATED, "Sign in again to confirm this change"),
     EMAIL_UNCHANGED(ErrorCategory.INVALID_INPUT, "The new email is the same as the current one"),
     EMAIL_ALREADY_IN_USE(ErrorCategory.CONFLICT, "Email address is already in use"),
     SESSION_NOT_FOUND(ErrorCategory.NOT_FOUND, "Session not found"),
