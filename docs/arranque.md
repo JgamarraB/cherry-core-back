@@ -15,7 +15,7 @@
 |---|---|
 | Estado | http://localhost:8080/actuator/health |
 | Emails enviados (Mailpit) | http://localhost:8025 |
-| Ficheros (consola RustFS) | http://localhost:9001 |
+| Ficheros (consola RustFS) | http://localhost:9001/rustfs/console/ |
 | OpenID discovery | http://localhost:8080/.well-known/openid-configuration |
 
 Sin perfil la app **no arranca a propósito**: faltan valores obligatorios y nunca se usan los de desarrollo por error.

@@ -109,7 +109,7 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 ## D12 · Ficheros (logos y multimedia) — 2026-11-05
 
 - Almacenamiento **compatible con S3**: el código no depende del proveedor.
-- MinIO dejó de publicar imágenes Docker gratuitas: en local y tests usamos **RustFS** (compatible con MinIO, Apache 2.0). En el servidor vale RustFS o MinIO compilado.
+- MinIO dejó de publicar imágenes Docker gratuitas: usamos **RustFS** (gratuito, Apache 2.0, compatible con MinIO) en local, tests y **también en nuestros servidores** (máquinas virtuales Ubuntu).
 - Una carpeta por empresa: `companies/{id}/public/...` (público, p. ej. logo). El resto del bucket es privado.
 - El tipo de imagen se comprueba por el contenido (PNG, JPEG, WEBP). **Nunca SVG** (puede llevar JavaScript).
 - Los emails de una empresa (invitaciones, aprobación) llevan **su logo o, si no tiene, su nombre comercial**. Los de cuenta llevan la marca de la plataforma.
