@@ -65,6 +65,15 @@ public class Account {
                 AccountStatus.ACTIVE, 0, null, null, null, locale);
     }
 
+    /**
+     * Cliente que se registra con Google/Apple: el proveedor ha verificado el
+     * email y no tiene contraseña (puede crearla con "olvidé mi contraseña").
+     */
+    public static Account newSocialCustomer(UUID id, EmailAddress email, Locale locale, Instant now) {
+        return new Account(id, AccountType.CUSTOMER, email, now, null, AccountStatus.ACTIVE, 0, null, null, null,
+                locale);
+    }
+
     public static Account restore(UUID id, AccountType type, EmailAddress email, Instant emailVerifiedAt,
             String passwordHash, AccountStatus status, int failedLoginAttempts, Instant lockedUntil,
             Instant lastLoginAt, PlatformRole platformRole, Locale locale) {

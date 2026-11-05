@@ -67,15 +67,16 @@ public class SessionLoginHandler {
         request.changeSessionId();
     }
 
-    public void establish(UUID accountId, AccountType type, boolean superAdmin, boolean usedTotp,
-            HttpServletRequest request, HttpServletResponse response) {
+    public void establish(UUID accountId, AccountType type, boolean superAdmin, PrimaryFactor primaryFactor,
+            boolean usedTotp, HttpServletRequest request, HttpServletResponse response) {
         List<GrantedAuthority> authorities = new ArrayList<>();
         authorities.add(AccountAuthorities.role(type.name()));
         if (superAdmin) {
             authorities.add(AccountAuthorities.role(AccountAuthorities.SUPER_ADMIN));
         }
-        authorities.add(FactorGrantedAuthority.withAuthority(FactorGrantedAuthority.PASSWORD_AUTHORITY)
-                .issuedAt(clock.instant()).build());
+        authorities.add(FactorGrantedAuthority.withAuthority(primaryFactor == PrimaryFactor.SOCIAL
+                ? FactorGrantedAuthority.AUTHORIZATION_CODE_AUTHORITY
+                : FactorGrantedAuthority.PASSWORD_AUTHORITY).issuedAt(clock.instant()).build());
         if (usedTotp) {
             authorities.add(FactorGrantedAuthority.withFactor(AccountAuthorities.TOTP_FACTOR)
                     .issuedAt(clock.instant()).build());

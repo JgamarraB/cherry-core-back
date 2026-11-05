@@ -34,7 +34,7 @@ import jakarta.servlet.http.HttpSession;
  * descarta y hay que volver a poner la contraseña.</p>
  */
 @Component
-class LoginFlow {
+public class LoginFlow {
 
     static final int MAX_MFA_ATTEMPTS = 5;
 
@@ -53,16 +53,21 @@ class LoginFlow {
         this.eventLogger = eventLogger;
     }
 
-    LoginResponse afterPassword(AuthenticatedAccount authenticated, HttpServletRequest request,
+    public LoginResponse afterPassword(AuthenticatedAccount authenticated, HttpServletRequest request,
             HttpServletResponse response) {
+        return afterPrimaryFactor(authenticated, PrimaryFactor.PASSWORD, request, response);
+    }
+
+    public LoginResponse afterPrimaryFactor(AuthenticatedAccount authenticated, PrimaryFactor factor,
+            HttpServletRequest request, HttpServletResponse response) {
         Account account = accounts.getActive(authenticated.id());
         session.rotateSessionId(request, response);
         boolean enabled = mfa.isEnabled(account.id());
         if (!enabled && !MfaService.isMandatoryFor(account.type())) {
-            return finish(account.id(), account.type(), account.isSuperAdmin(), false, request, response);
+            return finish(account.id(), account.type(), account.isSuperAdmin(), factor, false, request, response);
         }
         request.getSession().setAttribute(PendingLogin.SESSION_ATTRIBUTE,
-                new PendingLogin(account.id(), account.type(), account.isSuperAdmin(), 0));
+                new PendingLogin(account.id(), account.type(), account.isSuperAdmin(), factor, 0));
         return new LoginResponse(enabled ? LoginStatus.MFA_REQUIRED : LoginStatus.MFA_SETUP_REQUIRED, null);
     }
 
@@ -79,7 +84,8 @@ class LoginFlow {
             throw new DomainException(IdentityErrorCode.INVALID_MFA_CODE);
         }
         request.getSession().removeAttribute(PendingLogin.SESSION_ATTRIBUTE);
-        return finish(pending.accountId(), pending.type(), pending.superAdmin(), true, request, response);
+        return finish(pending.accountId(), pending.type(), pending.superAdmin(), pending.primaryFactor(), true,
+                request, response);
     }
 
     MfaEnrollment startMfaSetup(HttpServletRequest request) {
@@ -90,8 +96,8 @@ class LoginFlow {
         PendingLogin pending = pending(request);
         List<String> recoveryCodes = mfa.confirmEnrollment(pending.accountId(), code);
         request.getSession().removeAttribute(PendingLogin.SESSION_ATTRIBUTE);
-        LoginResponse login = finish(pending.accountId(), pending.type(), pending.superAdmin(), true, request,
-                response);
+        LoginResponse login = finish(pending.accountId(), pending.type(), pending.superAdmin(),
+                pending.primaryFactor(), true, request, response);
         return new MfaSetupConfirmed(recoveryCodes, login);
     }
 
@@ -113,9 +119,9 @@ class LoginFlow {
         return mfa.isEnabled(pending.accountId()) ? LoginStatus.MFA_REQUIRED : LoginStatus.MFA_SETUP_REQUIRED;
     }
 
-    private LoginResponse finish(UUID accountId, AccountType type, boolean superAdmin, boolean usedTotp,
-            HttpServletRequest request, HttpServletResponse response) {
-        session.establish(accountId, type, superAdmin, usedTotp, request, response);
+    private LoginResponse finish(UUID accountId, AccountType type, boolean superAdmin, PrimaryFactor factor,
+            boolean usedTotp, HttpServletRequest request, HttpServletResponse response) {
+        session.establish(accountId, type, superAdmin, factor, usedTotp, request, response);
         eventLogger.log(AuthEventType.LOGIN_COMPLETED, accountId, RequestContextResolver.from(request));
         if (type == AccountType.STAFF) {
             List<TenantOption> options = tenants.tenantsOf(accountId);

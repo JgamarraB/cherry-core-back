@@ -24,9 +24,7 @@ public final class AuthPaths {
     public static final String INVITATION_LOOKUP = "/invitations/lookup";
     public static final String INVITATION_ACCEPT = "/invitations/accept";
     public static final String EMAIL_CHANGE_CONFIRM = "/email-change/confirm";
-    public static final String SOCIAL_PROVIDERS = "/social/providers";
-    public static final String SOCIAL_PENDING = "/social/pending";
-    public static final String SOCIAL_COMPLETE = "/social/complete";
+
     public static final String CUSTOMER_REGISTER = "/customers/register";
     public static final String CUSTOMER_RESEND_VERIFICATION = "/customers/email-verification/resend";
     public static final String CUSTOMER_FORGOT_PASSWORD = "/customers/password/forgot";

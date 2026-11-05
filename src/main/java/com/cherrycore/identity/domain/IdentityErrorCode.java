@@ -31,6 +31,10 @@ public enum IdentityErrorCode implements ErrorCode {
     EMAIL_UNCHANGED(ErrorCategory.INVALID_INPUT, "The new email is the same as the current one"),
     EMAIL_ALREADY_IN_USE(ErrorCategory.CONFLICT, "Email address is already in use"),
     SESSION_NOT_FOUND(ErrorCategory.NOT_FOUND, "Session not found"),
+    SOCIAL_PROVIDER_NOT_AVAILABLE(ErrorCategory.NOT_FOUND, "Social login provider is not available"),
+    SOCIAL_EMAIL_NOT_VERIFIED(ErrorCategory.FORBIDDEN, "The provider did not confirm the email address"),
+    SOCIAL_ACCOUNT_NOT_FOUND(ErrorCategory.NOT_FOUND, "No staff account is linked to this social login"),
+    NO_PENDING_SOCIAL_SIGNUP(ErrorCategory.BUSINESS_RULE, "No social sign-up in progress"),
     ACCOUNT_NOT_FOUND(ErrorCategory.NOT_FOUND, "Account not found");
 
     private final ErrorCategory category;

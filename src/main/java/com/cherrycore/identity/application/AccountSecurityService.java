@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.cherrycore.identity.application.port.AccountRepository;
 import com.cherrycore.identity.application.port.AccountSessionRevoker;
+import com.cherrycore.identity.application.port.FederatedIdentityRepository;
 import com.cherrycore.identity.application.port.IdentityNotifier;
 import com.cherrycore.identity.application.port.OneTimeTokenRepository;
 import com.cherrycore.identity.application.port.PasswordHasher;
@@ -39,6 +40,7 @@ public class AccountSecurityService {
     private final OneTimeTokenRepository tokenRepository;
     private final SecureTokenService tokenService;
     private final AccountSessionRevoker sessionRevoker;
+    private final FederatedIdentityRepository federatedIdentities;
     private final MfaService mfa;
     private final IdentityNotifier notifier;
     private final AuthEventLogger eventLogger;
@@ -48,7 +50,8 @@ public class AccountSecurityService {
 
     public AccountSecurityService(AccountRepository accounts, PasswordHasher passwordHasher,
             OneTimeTokenIssuer tokenIssuer, OneTimeTokenRepository tokenRepository, SecureTokenService tokenService,
-            AccountSessionRevoker sessionRevoker, MfaService mfa, IdentityNotifier notifier,
+            AccountSessionRevoker sessionRevoker, FederatedIdentityRepository federatedIdentities, MfaService mfa,
+            IdentityNotifier notifier,
             AuthEventLogger eventLogger, ApplicationEventPublisher events, IdentitySettings settings, Clock clock) {
         this.accounts = accounts;
         this.passwordHasher = passwordHasher;
@@ -56,6 +59,7 @@ public class AccountSecurityService {
         this.tokenRepository = tokenRepository;
         this.tokenService = tokenService;
         this.sessionRevoker = sessionRevoker;
+        this.federatedIdentities = federatedIdentities;
         this.mfa = mfa;
         this.notifier = notifier;
         this.eventLogger = eventLogger;
@@ -140,6 +144,7 @@ public class AccountSecurityService {
         events.publishEvent(new AccountDeletionRequested(accountId, account.type()));
 
         mfa.reset(accountId);
+        federatedIdentities.deleteByAccount(accountId);
         account.anonymize(new EmailAddress(DELETED_EMAIL_FORMAT.formatted(accountId)));
         accounts.save(account);
         accounts.softDelete(accountId);

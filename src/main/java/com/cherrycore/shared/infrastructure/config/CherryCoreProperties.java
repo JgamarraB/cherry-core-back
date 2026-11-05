@@ -42,7 +42,8 @@ public record CherryCoreProperties(
         @NotNull @Valid Cors cors,
         @NotNull @Valid OAuth oauth,
         @NotNull @Valid Branding branding,
-        @NotNull @Valid Storage storage
+        @NotNull @Valid Storage storage,
+        @Valid Social social
 ) {
 
     public static final String PREFIX = "cherrycore";
@@ -231,6 +232,27 @@ public record CherryCoreProperties(
             @NotNull URI publicBaseUrl,
             @NotNull DataSize maxImageSize
     ) {
+    }
+
+    /**
+     * Login social. Google se configura solo con las propiedades estándar de
+     * Spring ({@code spring.security.oauth2.client.registration.google}).
+     * Apple necesita además los datos para generar su "client secret" firmado.
+     */
+    public record Social(@Valid Apple apple) {
+    }
+
+    /**
+     * @param teamId             Team ID de la cuenta de desarrollador de Apple
+     * @param keyId              id de la clave "Sign in with Apple"
+     * @param privateKeyLocation fichero .p8 de esa clave
+     */
+    public record Apple(String teamId, String keyId, Resource privateKeyLocation) {
+
+        public boolean isConfigured() {
+            return teamId != null && !teamId.isBlank() && keyId != null && !keyId.isBlank()
+                    && privateKeyLocation != null;
+        }
     }
 
     public record OAuth(@NotNull List<@Valid Client> clients) {

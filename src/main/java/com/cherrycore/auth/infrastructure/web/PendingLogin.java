@@ -10,7 +10,8 @@ import com.cherrycore.identity.domain.AccountType;
  * Login a medias: la contraseña es correcta pero falta el segundo factor.
  * Vive en la sesión; NO cuenta como autenticado para nada.
  */
-record PendingLogin(UUID accountId, AccountType type, boolean superAdmin, int failedMfaAttempts)
+record PendingLogin(UUID accountId, AccountType type, boolean superAdmin, PrimaryFactor primaryFactor,
+        int failedMfaAttempts)
         implements Serializable {
 
     @Serial
@@ -19,6 +20,6 @@ record PendingLogin(UUID accountId, AccountType type, boolean superAdmin, int fa
     static final String SESSION_ATTRIBUTE = "cherrycore.pendingLogin";
 
     PendingLogin withFailedAttempt() {
-        return new PendingLogin(accountId, type, superAdmin, failedMfaAttempts + 1);
+        return new PendingLogin(accountId, type, superAdmin, primaryFactor, failedMfaAttempts + 1);
     }
 }

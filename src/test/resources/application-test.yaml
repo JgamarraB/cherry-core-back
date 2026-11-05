@@ -1,9 +1,24 @@
-# Perfil "test": lo activan los tests de integración (Postgres por Testcontainers).
+# Perfil "test": lo activan los tests de integración (Postgres y S3 por Testcontainers).
 spring:
   mail:
     host: localhost
     port: 2525
-
+  security:
+    oauth2:
+      client:
+        # Proveedor "google" falso: solo para comprobar la redirección (no hay login real en tests).
+        registration:
+          google:
+            client-id: test-google-client
+            client-secret: test-google-secret
+            scope: openid,email,profile
+        provider:
+          google:
+            authorization-uri: https://accounts.example.test/o/oauth2/auth
+            token-uri: https://accounts.example.test/token
+            jwk-set-uri: https://accounts.example.test/certs
+            user-info-uri: https://accounts.example.test/userinfo
+            user-name-attribute: sub
 
 cherrycore:
   issuer: http://localhost
