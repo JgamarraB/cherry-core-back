@@ -62,7 +62,7 @@ applications ─ 1:N ─ application_permissions ─ N:M ─ company_roles
 `account_id`, `purpose` (`EMAIL_VERIFICATION` / `PASSWORD_RESET` / `EMAIL_CHANGE`), `payload` (email nuevo, V7), `token_hash` (**nunca el token en claro**), `expires_at`, `used_at`.
 
 ### `auth_events` ✅ V2
-`account_id` (puede ser NULL si el email no existe), `type` (`LOGIN_OK`, `LOGIN_FAILED`, `PASSWORD_RESET`, `MFA_FAILED`…), `ip`, `user_agent`, `occurred_at`. Solo inserción.
+`account_id` (puede ser NULL si el email no existe), `type` (`LOGIN_OK`, `LOGIN_FAILED`, `PASSWORD_RESET`, `MFA_FAILED`…), `ip`, `user_agent`, `occurred_at`, `details` (JSONB con claves permitidas: actor, cuenta afectada, empresa, app, rol, motivo… nunca secretos; V11). Solo inserción.
 
 ## Clientes
 
@@ -104,7 +104,7 @@ applications ─ 1:N ─ application_permissions ─ N:M ─ company_roles
 ## Apps y permisos
 
 ### `applications` ✅ V5
-`code` (`cherrycore`, `lirgar`...), `name`, `status` (`ACTIVE` / `DISABLED`).
+`code` (`cherrycore`, `lirgar`...), `name`, `status` (`ACTIVE` / `DISABLED`), `logo_key` (logo público de la app, V10).
 
 ### `application_permissions` ✅ V5
 `application_id`, `code` (`vehicles.manage`...), `description`. Lo sincroniza cada app.

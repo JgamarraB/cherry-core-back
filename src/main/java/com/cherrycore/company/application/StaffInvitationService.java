@@ -34,6 +34,8 @@ import com.cherrycore.identity.application.port.SecureTokenService;
 import com.cherrycore.identity.application.port.SecureTokenService.GeneratedToken;
 import com.cherrycore.identity.domain.Account;
 import com.cherrycore.identity.domain.AccountType;
+import com.cherrycore.identity.domain.AuditDetail;
+import com.cherrycore.identity.domain.AuthEventType;
 import com.cherrycore.identity.domain.EmailAddress;
 import com.cherrycore.shared.domain.error.DomainException;
 import com.cherrycore.shared.domain.id.UuidV7;
@@ -58,13 +60,14 @@ public class StaffInvitationService {
     private final CompanyNotifier notifier;
     private final CompanyLogos logos;
     private final CompanySettings settings;
+    private final CompanyAudit audit;
     private final Clock clock;
 
     public StaffInvitationService(CompanyAccessPolicy access, StaffInvitationRepository invitations,
             CompanyRoleRepository roles, MembershipRepository memberships, CompanyRepository companies,
             StaffUserRepository staffUsers, AccountQueryService accounts,
             AccountRegistrationService accountRegistration, SecureTokenService tokens, CompanyNotifier notifier,
-            CompanyLogos logos, CompanySettings settings, Clock clock) {
+            CompanyLogos logos, CompanySettings settings, CompanyAudit audit, Clock clock) {
         this.access = access;
         this.invitations = invitations;
         this.roles = roles;
@@ -77,11 +80,12 @@ public class StaffInvitationService {
         this.notifier = notifier;
         this.logos = logos;
         this.settings = settings;
+        this.audit = audit;
         this.clock = clock;
     }
 
     @Transactional
-    public InvitationView invite(StaffActor actor, String rawEmail, UUID roleId) {
+    public InvitationView invite(StaffActor actor, String rawEmail, UUID roleId, RequestContext request) {
         CompanyContext context = access.require(actor, CompanyPermission.MEMBERS_MANAGE);
         Company company = context.company();
         EmailAddress email = EmailAddress.of(rawEmail);
@@ -111,6 +115,10 @@ public class StaffInvitationService {
 
         Account inviter = accounts.getActive(actor.accountId());
         notifier.invitationSent(invitation, company, role.name(), token.rawValue(), inviter.locale());
+        audit.event(AuthEventType.INVITATION_SENT, actor.accountId(), company)
+                .detail(AuditDetail.EMAIL, email.value())
+                .detail(AuditDetail.ROLE, role.code().value())
+                .log(request);
         return new InvitationView(invitation.id(), email.value(), role.id(), role.name(), invitation.expiresAt());
     }
 
@@ -129,13 +137,17 @@ public class StaffInvitationService {
     }
 
     @Transactional
-    public void revoke(StaffActor actor, UUID invitationId) {
-        UUID companyId = access.require(actor, CompanyPermission.MEMBERS_MANAGE).company().id();
+    public void revoke(StaffActor actor, UUID invitationId, RequestContext request) {
+        Company company = access.require(actor, CompanyPermission.MEMBERS_MANAGE).company();
+        UUID companyId = company.id();
         StaffInvitation invitation = invitations.findById(invitationId)
                 .filter(candidate -> candidate.companyId().equals(companyId))
                 .orElseThrow(() -> new DomainException(CompanyErrorCode.INVITATION_NOT_FOUND));
         invitation.revoke(clock.instant());
         invitations.save(invitation);
+        audit.event(AuthEventType.INVITATION_REVOKED, actor.accountId(), company)
+                .detail(AuditDetail.EMAIL, invitation.email().value())
+                .log(request);
     }
 
     @Transactional(readOnly = true)
@@ -169,7 +181,7 @@ public class StaffInvitationService {
         Account account = accountRegistration.createInvitedStaff(invitation.email(), command.password(),
                 command.locale(), context);
         staffUsers.save(new StaffUser(account.id(), firstName, lastName, phone));
-        join(invitation, account.id());
+        join(invitation, account.id(), context);
         return account.id();
     }
 
@@ -177,7 +189,7 @@ public class StaffInvitationService {
      * Aceptar con la cuenta con la que ya ha iniciado sesión.
      */
     @Transactional
-    public void acceptWithExistingAccount(String rawToken, UUID accountId) {
+    public void acceptWithExistingAccount(String rawToken, UUID accountId, RequestContext context) {
         StaffInvitation invitation = pending(rawToken);
         activeCompany(invitation);
         Account account = accounts.getActive(accountId);
@@ -187,14 +199,19 @@ public class StaffInvitationService {
         if (memberships.findByCompanyAndStaffUser(invitation.companyId(), accountId).isPresent()) {
             throw new DomainException(CompanyErrorCode.ALREADY_MEMBER);
         }
-        join(invitation, accountId);
+        join(invitation, accountId, context);
     }
 
-    private void join(StaffInvitation invitation, UUID accountId) {
+    private void join(StaffInvitation invitation, UUID accountId, RequestContext context) {
         invitation.accept(clock.instant());
         invitations.save(invitation);
         memberships.save(new Membership(UuidV7.generate(clock), accountId, invitation.companyId(),
                 invitation.roleId(), MembershipStatus.ACTIVE));
+        Company company = activeCompany(invitation);
+        String roleCode = roles.findById(invitation.roleId()).map(role -> role.code().value()).orElse(null);
+        audit.event(AuthEventType.INVITATION_ACCEPTED, accountId, company)
+                .detail(AuditDetail.ROLE, roleCode)
+                .log(context);
     }
 
     private StaffInvitation pending(String rawToken) {

@@ -1,6 +1,7 @@
 package com.cherrycore.identity.application;
 
 import java.time.Clock;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
@@ -25,7 +26,15 @@ public class AuthEventLogger {
     }
 
     public void log(AuthEventType type, UUID accountId, RequestContext context) {
+        log(type, accountId, context, Map.of());
+    }
+
+    /**
+     * @param details contexto del evento con claves de {@link com.cherrycore.identity.domain.AuditDetail}
+     *                (las desconocidas se descartan). Nunca secretos.
+     */
+    public void log(AuthEventType type, UUID accountId, RequestContext context, Map<String, String> details) {
         recorder.record(new AuthEvent(UuidV7.generate(clock), accountId, type,
-                context.ip(), context.userAgent(), clock.instant()));
+                context.ip(), context.userAgent(), clock.instant(), details));
     }
 }

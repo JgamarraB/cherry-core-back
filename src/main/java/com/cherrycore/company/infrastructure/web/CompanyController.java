@@ -37,9 +37,11 @@ import com.cherrycore.company.infrastructure.web.CompanyDtos.CompanyData;
 import com.cherrycore.company.infrastructure.web.CompanyDtos.CreateRoleRequest;
 import com.cherrycore.company.infrastructure.web.CompanyDtos.InviteRequest;
 import com.cherrycore.company.infrastructure.web.CompanyDtos.UpdateRoleRequest;
+import com.cherrycore.identity.infrastructure.web.RequestContextResolver;
 import com.cherrycore.shared.infrastructure.security.AccountAuthorities;
 import com.cherrycore.shared.infrastructure.web.ApiSuccessResponse;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 /**
@@ -104,24 +106,37 @@ public class CompanyController {
 
     @PutMapping(CompanyPaths.MEMBER)
     public ApiSuccessResponse<MemberView> changeRole(@PathVariable UUID membershipId,
-            @Valid @RequestBody ChangeRoleRequest body) {
-        return ApiSuccessResponse.of(members.changeRole(StaffActorResolver.current(), membershipId, body.roleId()));
+            @Valid @RequestBody ChangeRoleRequest body, HttpServletRequest request) {
+        return ApiSuccessResponse.of(members.changeRole(StaffActorResolver.current(), membershipId, body.roleId(),
+                RequestContextResolver.from(request)));
     }
 
     @PostMapping(CompanyPaths.MEMBER_SUSPEND)
-    public ApiSuccessResponse<MemberView> suspend(@PathVariable UUID membershipId) {
-        return ApiSuccessResponse.of(members.suspend(StaffActorResolver.current(), membershipId));
+    public ApiSuccessResponse<MemberView> suspend(@PathVariable UUID membershipId, HttpServletRequest request) {
+        return ApiSuccessResponse.of(members.suspend(StaffActorResolver.current(), membershipId,
+                RequestContextResolver.from(request)));
     }
 
     @PostMapping(CompanyPaths.MEMBER_REACTIVATE)
-    public ApiSuccessResponse<MemberView> reactivate(@PathVariable UUID membershipId) {
-        return ApiSuccessResponse.of(members.reactivate(StaffActorResolver.current(), membershipId));
+    public ApiSuccessResponse<MemberView> reactivate(@PathVariable UUID membershipId, HttpServletRequest request) {
+        return ApiSuccessResponse.of(members.reactivate(StaffActorResolver.current(), membershipId,
+                RequestContextResolver.from(request)));
     }
 
     @DeleteMapping(CompanyPaths.MEMBER)
-    public ApiSuccessResponse<Void> remove(@PathVariable UUID membershipId) {
-        members.remove(StaffActorResolver.current(), membershipId);
+    public ApiSuccessResponse<Void> remove(@PathVariable UUID membershipId, HttpServletRequest request) {
+        members.remove(StaffActorResolver.current(), membershipId, RequestContextResolver.from(request));
         return ApiSuccessResponse.of(null);
+    }
+
+    /**
+     * Solo un OWNER: el miembro pasa a OWNER y quien la cede pasa a ADMIN.
+     */
+    @PostMapping(CompanyPaths.MEMBER_TRANSFER_OWNERSHIP)
+    public ApiSuccessResponse<MemberView> transferOwnership(@PathVariable UUID membershipId,
+            HttpServletRequest request) {
+        return ApiSuccessResponse.of(members.transferOwnership(StaffActorResolver.current(), membershipId,
+                RequestContextResolver.from(request)));
     }
 
     @GetMapping(CompanyPaths.ROLES)
@@ -161,13 +176,15 @@ public class CompanyController {
 
     @PostMapping(CompanyPaths.INVITATIONS)
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiSuccessResponse<InvitationView> invite(@Valid @RequestBody InviteRequest body) {
-        return ApiSuccessResponse.of(invitations.invite(StaffActorResolver.current(), body.email(), body.roleId()));
+    public ApiSuccessResponse<InvitationView> invite(@Valid @RequestBody InviteRequest body,
+            HttpServletRequest request) {
+        return ApiSuccessResponse.of(invitations.invite(StaffActorResolver.current(), body.email(), body.roleId(),
+                RequestContextResolver.from(request)));
     }
 
     @DeleteMapping(CompanyPaths.INVITATION)
-    public ApiSuccessResponse<Void> revokeInvitation(@PathVariable UUID invitationId) {
-        invitations.revoke(StaffActorResolver.current(), invitationId);
+    public ApiSuccessResponse<Void> revokeInvitation(@PathVariable UUID invitationId, HttpServletRequest request) {
+        invitations.revoke(StaffActorResolver.current(), invitationId, RequestContextResolver.from(request));
         return ApiSuccessResponse.of(null);
     }
 

@@ -1,0 +1,41 @@
+# ---------------------------------------------------------------
+# Proxy de entrada con HTTPS automático (Let's Encrypt).
+# Las variables {$...} vienen de deploy/.env (ver docker-compose.prod.yml).
+# Caddy NO confía en X-Forwarded-* entrantes: escribe la IP real del cliente.
+# ---------------------------------------------------------------
+{
+	email {$ACME_EMAIL}
+}
+
+# Login, API y frontal (mismo dominio: cookie de sesión + CSRF).
+# Las cabeceras de seguridad (CSP, HSTS...) las ponen nginx y el backend.
+{$APP_DOMAIN} {
+	reverse_proxy frontend:8080
+	log
+}
+
+# Ficheros públicos (logos de empresa). Dominio aparte: el contenido subido
+# por usuarios nunca se sirve desde el origen del login.
+{$MEDIA_DOMAIN} {
+	@public {
+		method GET HEAD
+		path_regexp ^/{$STORAGE_BUCKET}/companies/[^/]+/public/[^/]+$
+	}
+	handle @public {
+		reverse_proxy storage:9000 {
+			header_up Host {upstream_hostport}
+			header_down -Server
+		}
+		header {
+			Strict-Transport-Security "max-age=31536000; includeSubDomains"
+			X-Content-Type-Options "nosniff"
+			Content-Security-Policy "default-src 'none'; frame-ancestors 'none'; sandbox"
+			Cross-Origin-Resource-Policy "cross-origin"
+			Cache-Control "public, max-age=300"
+		}
+	}
+	handle {
+		respond 404
+	}
+	log
+}

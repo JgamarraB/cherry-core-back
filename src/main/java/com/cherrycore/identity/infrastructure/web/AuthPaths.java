@@ -24,6 +24,9 @@ public final class AuthPaths {
     public static final String INVITATION_LOOKUP = "/invitations/lookup";
     public static final String INVITATION_ACCEPT = "/invitations/accept";
     public static final String EMAIL_CHANGE_CONFIRM = "/email-change/confirm";
+    /** Marca (nombre y logo) de la app que pide el login. Público. */
+    public static final String APP_BRANDING = "/apps/{clientId}";
+    public static final String APP_BRANDING_PREFIX = BASE + "/apps/";
 
     public static final String CUSTOMER_REGISTER = "/customers/register";
     public static final String CUSTOMER_RESEND_VERIFICATION = "/customers/email-verification/resend";

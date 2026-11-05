@@ -23,6 +23,13 @@ public interface CompanyNotifier {
     void invitationSent(StaffInvitation invitation, Company company, String roleName, String rawToken,
             Locale locale);
 
+    /**
+     * Aviso al nuevo dueño de la empresa.
+     *
+     * @param previousOwnerName nombre de quien le pasa la propiedad (o {@code null})
+     */
+    void ownershipTransferred(Company company, Recipient newOwner, String previousOwnerName);
+
     record Recipient(String email, Locale locale) {
     }
 }

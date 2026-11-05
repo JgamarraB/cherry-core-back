@@ -17,6 +17,7 @@ import com.cherrycore.catalog.application.CatalogService;
 import com.cherrycore.catalog.application.PermissionDefinition;
 import com.cherrycore.company.application.CompanyApplicationsService;
 import com.cherrycore.company.application.CompanyReviewService;
+import com.cherrycore.identity.application.RequestContext;
 import com.cherrycore.support.CapturingEmailSender;
 import com.cherrycore.support.IntegrationTest;
 import com.cherrycore.support.JsonBodies;
@@ -73,7 +74,7 @@ class StaffOAuthIntegrationTest {
 
     @Test
     void tokenCarriesCompanyRoleAndAppPermissions() throws Exception {
-        companyApplications.setEnabled(owner.companyId(), catalog.findByCode(APP).orElseThrow().id(), true);
+        enableApp();
 
         MvcResult token = authorizeAndExchange();
 
@@ -89,11 +90,11 @@ class StaffOAuthIntegrationTest {
 
     @Test
     void suspendingTheCompanyBlocksTokenRefresh() throws Exception {
-        companyApplications.setEnabled(owner.companyId(), catalog.findByCode(APP).orElseThrow().id(), true);
+        enableApp();
         MvcResult token = authorizeAndExchange();
         String refreshToken = JsonBodies.read(token, "$.refresh_token");
 
-        review.suspend(owner.companyId());
+        review.suspend(StaffFixtures.accountIdOf(owner.session()), owner.companyId(), RequestContext.NONE);
 
         assertThat(staffApp.refresh(refreshToken).getResponse().getStatus()).isEqualTo(400);
     }
@@ -113,5 +114,10 @@ class StaffOAuthIntegrationTest {
         String location = authorized.getResponse().getRedirectedUrl();
         assertThat(location).startsWith(REDIRECT);
         return staffApp.exchangeCode(OAuthClientSimulator.codeFrom(location));
+    }
+
+    private void enableApp() throws Exception {
+        companyApplications.setEnabled(StaffFixtures.accountIdOf(owner.session()), owner.companyId(),
+                catalog.findByCode(APP).orElseThrow().id(), true, RequestContext.NONE);
     }
 }

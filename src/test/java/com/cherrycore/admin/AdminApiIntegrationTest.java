@@ -183,6 +183,32 @@ class AdminApiIntegrationTest {
         assertThat(JsonBodies.<Integer>read(events, "$.data.size")).isEqualTo(5);
     }
 
+    @Test
+    void auditEventsCarryTheirContext() throws Exception {
+        String email = CustomerFixtures.registerVerified(new BrowserSession(mockMvc), mailbox);
+        String accountId = JsonBodies.<List<String>>read(admin.get("/api/admin/accounts?search=" + email),
+                "$.data.items[*].id").getFirst();
+        admin.call(HttpMethod.POST, "/api/admin/accounts/" + accountId + "/disable", null);
+
+        MvcResult disabled = admin.get("/api/admin/audit-events?type=ACCOUNT_DISABLED_BY_ADMIN&accountId="
+                + accountId);
+        assertThat(JsonBodies.<String>read(disabled, "$.data.items[0].actorEmail")).isEqualTo(adminEmail);
+        assertThat(JsonBodies.<String>read(disabled, "$.data.items[0].details.actorAccountId")).isNotBlank();
+
+        StaffFixtures.registerCompany(new BrowserSession(mockMvc), mailbox, "Contexto SL");
+        String pendingId = JsonBodies.<List<String>>read(
+                admin.get("/api/admin/companies?status=PENDING_APPROVAL&search=contexto"), "$.data.items[*].id")
+                .getFirst();
+        admin.call(HttpMethod.POST, "/api/admin/companies/" + pendingId + "/approve", null);
+
+        MvcResult approved = admin.get("/api/admin/audit-events?type=COMPANY_APPROVED&size=100");
+        List<String> names = JsonBodies.read(approved, "$.data.items[*].details.companyName");
+        assertThat(names).contains("Contexto SL");
+        List<String> ids = JsonBodies.read(approved, "$.data.items[?(@.details.companyName == 'Contexto SL')]"
+                + ".details.companyId");
+        assertThat(ids).containsExactly(pendingId);
+    }
+
     private static String clientBody(String clientId, String appCode, String redirectUri) {
         return """
                 {"clientId": "%s", "name": "Lirgar backoffice", "type": "CONFIDENTIAL", "audience": "STAFF",

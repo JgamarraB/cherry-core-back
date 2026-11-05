@@ -190,10 +190,14 @@ public record CherryCoreProperties(
 
     /**
      * Límite de peticiones por IP en los endpoints públicos de autenticación.
+     *
+     * @param capacity     peticiones que modifican (y la descarga de mis datos) por IP y endpoint en cada periodo
+     * @param readCapacity lecturas públicas (marca de la app en el login) por IP en cada periodo
      */
     public record RateLimit(
             boolean enabled,
             @Positive int capacity,
+            @Positive int readCapacity,
             @NotNull Duration refillPeriod
     ) {
     }

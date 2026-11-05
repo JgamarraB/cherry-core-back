@@ -169,6 +169,8 @@ cherrycore:
       enabled: true
       # Peticiones permitidas por IP y endpoint en cada periodo.
       capacity: 10
+      # Lecturas públicas por IP (marca de la app en el login): varias personas pueden compartir IP.
+      read-capacity: 60
       refill-period: 1m
 
   cors:

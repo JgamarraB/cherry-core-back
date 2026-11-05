@@ -95,13 +95,25 @@ public class SessionLoginHandler {
      */
     public void selectTenant(UUID companyId, HttpServletRequest request, HttpServletResponse response) {
         Authentication current = contextHolder.getContext().getAuthentication();
-        List<GrantedAuthority> authorities = new ArrayList<>(current.getAuthorities().stream()
+        List<GrantedAuthority> authorities = withoutTenant(current);
+        authorities.add(AccountAuthorities.tenant(companyId));
+        save(UUID.fromString(current.getName()), authorities, request, response);
+    }
+
+    /**
+     * Quita la empresa activa de la sesión (p. ej. al salir de ella).
+     */
+    public void clearTenant(HttpServletRequest request, HttpServletResponse response) {
+        Authentication current = contextHolder.getContext().getAuthentication();
+        save(UUID.fromString(current.getName()), withoutTenant(current), request, response);
+    }
+
+    private static List<GrantedAuthority> withoutTenant(Authentication authentication) {
+        return new ArrayList<>(authentication.getAuthorities().stream()
                 .filter(authority -> authority.getAuthority() == null
                         || !authority.getAuthority().startsWith(AccountAuthorities.TENANT_PREFIX))
                 .map(GrantedAuthority.class::cast)
                 .toList());
-        authorities.add(AccountAuthorities.tenant(companyId));
-        save(UUID.fromString(current.getName()), authorities, request, response);
     }
 
     /**

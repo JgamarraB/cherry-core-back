@@ -9,7 +9,7 @@ Ejemplo: Lirgar Mobility (backend Spring + web Astro + backoffice Angular).
 
 | Cliente | `audience` | `applicationCode` | `machineAccess` | Para |
 |---|---|---|---|---|
-| `lirgar-web` | `CUSTOMER` | — | no | la web de clientes |
+| `lirgar-web` | `CUSTOMER` | `lirgar` | no | la web de clientes (el `applicationCode` hace que el login muestre el nombre y logo de Lirgar) |
 | `lirgar-backoffice` | `STAFF` | `lirgar` | **sí** | el backoffice + sincronizar permisos |
 
 Tipo `CONFIDENTIAL` (patrón BFF). El secreto se muestra una sola vez: guardarlo como secreto del backend de Lirgar.

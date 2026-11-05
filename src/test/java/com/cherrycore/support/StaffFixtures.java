@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import com.cherrycore.company.application.CompanyReviewService;
 import com.cherrycore.company.application.port.StaffUserRepository;
 import com.cherrycore.company.domain.StaffUser;
+import com.cherrycore.identity.application.RequestContext;
 import com.cherrycore.identity.application.port.AccountRepository;
 import com.cherrycore.identity.application.port.PasswordHasher;
 import com.cherrycore.identity.domain.Account;
@@ -105,8 +106,15 @@ public final class StaffFixtures {
         return UUID.fromString(JsonBodies.read(owner.get("/api/company"), "$.data.id"));
     }
 
-    public static void approve(CompanyReviewService review, UUID companyId) {
-        review.approve(UUID.randomUUID(), companyId);
+    /**
+     * Aprueba la empresa. El "revisor" debe ser una cuenta real (queda en la auditoría).
+     */
+    public static void approve(CompanyReviewService review, UUID companyId, UUID reviewerId) {
+        review.approve(reviewerId, companyId, RequestContext.NONE);
+    }
+
+    public static UUID accountIdOf(BrowserSession browser) throws Exception {
+        return UUID.fromString(JsonBodies.read(browser.get("/api/account"), "$.data.id"));
     }
 
     /**
@@ -134,7 +142,7 @@ public final class StaffFixtures {
         String secret = mfa.secret();
         UUID companyId = UUID.fromString(JsonBodies.read(registration.get("/api/account/companies"),
                 "$.data[0].company.id"));
-        approve(review, companyId);
+        approve(review, companyId, accountIdOf(registration));
         BrowserSession session = login(mockMvc, email, secret);
         return new Owner(email, secret, mfa.recoveryCodes(), session, companyId);
     }

@@ -21,6 +21,9 @@ import com.cherrycore.admin.application.port.AdminReadModel;
 import com.cherrycore.shared.application.PageQuery;
 import com.cherrycore.shared.application.PageResult;
 
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.json.JsonMapper;
+
 /**
  * Consultas SQL del panel. Todos los filtros van como parámetros (nunca
  * concatenados): no hay inyección SQL posible.
@@ -61,9 +64,20 @@ class JdbcAdminReadModel implements AdminReadModel {
             WHERE 1 = 1
             """;
 
+    /*
+     * El email de quien actúa y de la cuenta afectada sale de details. Solo se
+     * convierte a UUID si tiene formato de UUID (así nunca falla la consulta).
+     */
     private static final String EVENTS_SELECT = """
-            SELECT e.id, e.account_id, a.email, e.type, e.ip, e.user_agent, e.occurred_at
+            SELECT e.id, e.account_id, a.email, e.type, e.ip, e.user_agent, e.occurred_at, e.details,
+                   (SELECT x.email FROM accounts x WHERE x.id = CASE WHEN e.details ->> 'actorAccountId' ~ :uuid
+                        THEN (e.details ->> 'actorAccountId')::uuid END) AS actor_email,
+                   (SELECT x.email FROM accounts x WHERE x.id = CASE WHEN e.details ->> 'targetAccountId' ~ :uuid
+                        THEN (e.details ->> 'targetAccountId')::uuid END) AS target_email
             """;
+    private static final String UUID_PATTERN = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
+    private static final TypeReference<Map<String, String>> DETAILS_TYPE = new TypeReference<>() {
+    };
 
     private static final String COUNT = "SELECT COUNT(*) ";
     private static final String PAGE = " LIMIT :limit OFFSET :offset";
@@ -71,9 +85,11 @@ class JdbcAdminReadModel implements AdminReadModel {
     private static final String SUPER_ADMIN = "SUPER_ADMIN";
 
     private final JdbcClient jdbc;
+    private final JsonMapper jsonMapper;
 
-    JdbcAdminReadModel(JdbcClient jdbc) {
+    JdbcAdminReadModel(JdbcClient jdbc, JsonMapper jsonMapper) {
         this.jdbc = jdbc;
+        this.jsonMapper = jsonMapper;
     }
 
     @Override
@@ -135,12 +151,19 @@ class JdbcAdminReadModel implements AdminReadModel {
         long total = jdbc.sql(COUNT + EVENTS_FROM + where).params(params).query(Long.class).single();
         List<AuditEventView> items = new ArrayList<>(jdbc.sql(EVENTS_SELECT + EVENTS_FROM + where
                         + " ORDER BY e.occurred_at DESC" + PAGE)
-                .params(params).param("limit", page.size()).param("offset", page.offset())
-                .query((rs, row) -> new AuditEventView(rs.getObject("id", UUID.class),
-                        rs.getObject("account_id", UUID.class), rs.getString("email"), rs.getString("type"),
-                        rs.getString("ip"), rs.getString("user_agent"), instant(rs, "occurred_at")))
+                .params(params).param("uuid", UUID_PATTERN).param("limit", page.size())
+                .param("offset", page.offset())
+                .query(this::toEvent)
                 .list());
         return new PageResult<>(items, page.page(), page.size(), total);
+    }
+
+    private AuditEventView toEvent(ResultSet rs, int row) throws SQLException {
+        String details = rs.getString("details");
+        return new AuditEventView(rs.getObject("id", UUID.class), rs.getObject("account_id", UUID.class),
+                rs.getString("email"), rs.getString("type"), rs.getString("ip"), rs.getString("user_agent"),
+                instant(rs, "occurred_at"), details == null ? Map.of() : jsonMapper.readValue(details, DETAILS_TYPE),
+                rs.getString("actor_email"), rs.getString("target_email"));
     }
 
     private static AccountSummary toAccount(ResultSet rs, int row) throws SQLException {

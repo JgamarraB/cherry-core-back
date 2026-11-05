@@ -36,6 +36,7 @@ El login va por pasos. Cada respuesta trae `data.status` con el siguiente paso:
 | `GET /staff/tenants` | — | `{activeCompanyId, tenants:[{companyId, name, logoUrl, roleCode, roleName}]}` |
 | `POST /staff/tenant` | `{companyId}` | `{status, redirectUrl}` (también sirve para cambiar de empresa) |
 | `POST /logout` | — | — |
+| `GET /apps/{clientId}` | — | `{name, logoUrl}` de la app que pide el login (público; 404 `CLIENT_NOT_FOUND` si no existe, no tiene app o está desactivada; limitado por IP) |
 
 Errores: `INVALID_CREDENTIALS` (401: email, contraseña, bloqueo o cuenta desactivada; nunca se distingue), `EMAIL_NOT_VERIFIED` (403), `INVALID_MFA_CODE` (401), `NO_PENDING_LOGIN` (401: volver a pedir la contraseña).
 
@@ -86,6 +87,8 @@ Errores de datos: `INVALID_EMAIL`, `PASSWORD_TOO_SHORT`, `PASSWORD_TOO_LONG`, `P
 | `POST /delete` | `{currentPassword, mfaCode?}` | — (borra y cierra sesión) |
 | `GET /companies` | — | mis empresas en cualquier estado: `[{company, roleCode, roleName, membershipStatus}]` |
 | `POST /companies` | datos de empresa | registra otra empresa (pendiente de aprobación) |
+| `POST /companies/{companyId}/leave` | — | salir de una empresa (backoffice); si era la activa, se quita de la sesión |
+| `GET /export` | — | descarga JSON con mis datos (RGPD): `{exportedAt, account, customer, staff, sessions[], securityEvents[], federatedIdentities[]}`. Sin secretos; limitado por IP y auditado |
 
 `hasPassword: false` (alta con login social): no se pide `currentPassword`; basta con haber entrado hace poco (si no, `REAUTHENTICATION_REQUIRED`).
 
@@ -108,9 +111,10 @@ Solo se entra en empresas **activas** (las pendientes o rechazadas se ven en Mi 
 | `PUT /roles/{id}` | `{name?, permissionIds[]}` | `roles.manage` |
 | `DELETE /roles/{id}` | — | `roles.manage` |
 | `GET /invitations` · `POST /invitations` `{email, roleId}` · `DELETE /invitations/{id}` | | `members.view` / `members.manage` |
+| `POST /members/{id}/transfer-ownership` | — | solo OWNER → `MemberView` del nuevo dueño; quien la cede pasa a ADMIN y el nuevo dueño recibe un email |
 | `GET /applications` | — | `applications.view` |
 
-Errores: `NO_COMPANY_SELECTED`, `LAST_OWNER`, `OWNER_ROLE_RESERVED`, `SYSTEM_ROLE_IMMUTABLE`, `OWNER_PERMISSIONS_FIXED`, `ROLE_IN_USE`, `ROLE_CODE_ALREADY_EXISTS`, `PERMISSION_NOT_AVAILABLE`, `ALREADY_MEMBER`, `LOGO_INVALID_FORMAT`, `LOGO_TOO_LARGE`.
+Errores: `NO_COMPANY_SELECTED`, `LAST_OWNER`, `OWNER_ROLE_RESERVED`, `SYSTEM_ROLE_IMMUTABLE`, `OWNER_PERMISSIONS_FIXED`, `ROLE_IN_USE`, `ROLE_CODE_ALREADY_EXISTS`, `PERMISSION_NOT_AVAILABLE`, `ALREADY_MEMBER`, `INVALID_OWNERSHIP_TRANSFER`, `LOGO_INVALID_FORMAT`, `LOGO_TOO_LARGE`.
 
 ## 6. Panel de superadmin (`/api/admin`, solo SUPER_ADMIN)
 
@@ -123,8 +127,8 @@ Errores: `NO_COMPANY_SELECTED`, `LAST_OWNER`, `OWNER_ROLE_RESERVED`, `SYSTEM_ROL
 | `GET /accounts?type=&status=&search=` · `GET /accounts/{id}` | cuentas (detalle con MFA, empresas y últimos eventos) |
 | `POST /accounts/{id}/disable` · `/enable` · `/unlock` · `/mfa/reset` · `/password-reset` | acciones |
 | `PUT /accounts/{id}/super-admin` `{enabled}` | dar/quitar superadmin |
-| `GET /applications` · `POST /applications` `{code, name}` · `PUT /applications/{id}` `{name, active}` · `GET /applications/{id}/permissions` | apps del catálogo |
+| `GET /applications` · `POST /applications` `{code, name}` · `PUT /applications/{id}` `{name, active}` · `GET /applications/{id}/permissions` · `PUT`/`DELETE /applications/{id}/logo` (multipart `file`, ≤ 2 MB) | apps del catálogo (`ApplicationView` incluye `logoUrl`) |
 | `GET /clients` · `POST /clients` · `PUT /clients/{clientId}` · `POST /clients/{clientId}/secret` · `DELETE /clients/{clientId}` | apps cliente OAuth (el secreto solo aparece al crear o rotar) |
-| `GET /audit-events?accountId=&type=&from=&to=` | auditoría de seguridad |
+| `GET /audit-events?accountId=&type=&from=&to=` | auditoría de seguridad (cada evento con `details`, `actorEmail`, `targetEmail`) |
 
 Errores: `CANNOT_MODIFY_OWN_ACCOUNT`, `LAST_SUPER_ADMIN`, `NOT_A_STAFF_ACCOUNT`, `INVALID_STATUS_TRANSITION`, `REJECTION_REASON_REQUIRED`, `INVALID_CLIENT_ID`, `CLIENT_ID_TAKEN`, `INVALID_REDIRECT_URI`, `INVALID_SCOPE`, `APPLICATION_REQUIRED`.

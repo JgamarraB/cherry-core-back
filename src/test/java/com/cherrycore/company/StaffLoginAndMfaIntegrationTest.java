@@ -78,7 +78,7 @@ class StaffLoginAndMfaIntegrationTest {
         String email = StaffFixtures.registerCompany(browser, mailbox, "Taller Dos");
         String secret = StaffFixtures.firstLoginWithMfaSetup(browser, email);
         UUID companyId = companyOf(email);
-        StaffFixtures.approve(review, companyId);
+        StaffFixtures.approve(review, companyId, StaffFixtures.accountIdOf(browser));
         mailbox.awaitEmail(email, "Tu empresa ya está activa");
 
         BrowserSession owner = StaffFixtures.login(mockMvc, email, secret);

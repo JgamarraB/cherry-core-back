@@ -29,6 +29,9 @@ public class ApplicationJpaEntity extends AuditableJpaEntity {
     @Column(name = "status", nullable = false)
     private ApplicationStatus status;
 
+    @Column(name = "logo_key")
+    private String logoKey;
+
     protected ApplicationJpaEntity() {
     }
 
@@ -55,5 +58,13 @@ public class ApplicationJpaEntity extends AuditableJpaEntity {
 
     public void setStatus(ApplicationStatus status) {
         this.status = status;
+    }
+
+    public String getLogoKey() {
+        return logoKey;
+    }
+
+    public void setLogoKey(String logoKey) {
+        this.logoKey = logoKey;
     }
 }

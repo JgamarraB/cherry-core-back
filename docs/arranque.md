@@ -38,6 +38,8 @@ JRE 21, usuario sin privilegios, parada ordenada. Sondas: `/actuator/health/live
 
 ## Producción: variables de entorno
 
+Paso a paso para una VM Ubuntu (Docker Compose, HTTPS, copias): [despliegue.md](despliegue.md).
+
 | Variable | Ejemplo / nota |
 |---|---|
 | `SPRING_PROFILES_ACTIVE` | `prod` |

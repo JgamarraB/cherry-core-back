@@ -82,6 +82,8 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - Las apps se activan por empresa a mano desde el panel; más adelante lo hará la **suscripción de Stripe**.
 - Backoffice en varias empresas: elige con cuál entrar. El token de la app lleva `tenant_id`, `tenant_role` y `permissions` (solo los de esa app), y se revalida en cada refresh.
 
+- Límite por IP también en lecturas sensibles: marca de app del login (`/api/auth/apps/*`, todo el prefijo cuenta junto) y exportación de datos.
+
 ## D8 · Datos y auditoría — 2026-11-05
 
 - **Borrado lógico** en todas las tablas (`deleted_at`, `deleted_by`).
@@ -106,6 +108,8 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - Un único frontend con: login/registro/recuperación, "mi cuenta", gestión de la empresa y **panel de superadmin**.
 - Se sirve en el **mismo dominio** que la API y usa la **sesión con cookie + CSRF** (no tokens). Los tokens son solo para las apps externas.
 
+- La auditoría guarda `details` (JSONB) con claves permitidas y sin secretos. El evento se apunta a la cuenta afectada (con el actor en `actorAccountId`) o, si no hay, al actor. — 2026-11-06
+
 ## D12 · Ficheros (logos y multimedia) — 2026-11-05
 
 - Almacenamiento **compatible con S3**: el código no depende del proveedor.
@@ -113,6 +117,8 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - Una carpeta por empresa: `companies/{id}/public/...` (público, p. ej. logo). El resto del bucket es privado.
 - El tipo de imagen se comprueba por el contenido (PNG, JPEG, WEBP). **Nunca SVG** (puede llevar JavaScript).
 - Los emails de una empresa (invitaciones, aprobación) llevan **su logo o, si no tiene, su nombre comercial**. Los de cuenta llevan la marca de la plataforma.
+
+- Las apps del catálogo también tienen su carpeta pública `applications/{id}/public/...` (logo que se ve en el login). — 2026-11-06
 
 ## D13 · Borrado de cuenta (RGPD) — 2026-11-05
 
@@ -132,3 +138,4 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - Suscripciones con Stripe (fase 2 del producto).
 - Webhooks a las apps (cuenta borrada, empresa suspendida...).
 - Passkeys (WebAuthn) como alternativa al TOTP.
+- **Derecho de acceso**: cada persona descarga sus datos en JSON desde Mi cuenta (`GET /api/account/export`). — 2026-11-06

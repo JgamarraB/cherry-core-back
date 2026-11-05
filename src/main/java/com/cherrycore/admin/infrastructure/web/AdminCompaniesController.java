@@ -22,11 +22,13 @@ import com.cherrycore.company.application.CompanyView;
 import com.cherrycore.company.application.MemberView;
 import com.cherrycore.company.domain.Company;
 import com.cherrycore.company.domain.CompanyStatus;
+import com.cherrycore.identity.infrastructure.web.RequestContextResolver;
 import com.cherrycore.shared.application.PageQuery;
 import com.cherrycore.shared.infrastructure.security.AccountAuthorities;
 import com.cherrycore.shared.infrastructure.web.ApiSuccessResponse;
 import com.cherrycore.shared.infrastructure.web.PageResponse;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -79,29 +81,31 @@ public class AdminCompaniesController {
      */
     @PutMapping("/{companyId}/applications/{applicationId}")
     public ApiSuccessResponse<List<CompanyApplicationView>> setApplication(@PathVariable UUID companyId,
-            @PathVariable UUID applicationId, @Valid @RequestBody EnabledRequest body) {
-        return ApiSuccessResponse.of(applications.setEnabled(companyId, applicationId, body.enabled()));
+            @PathVariable UUID applicationId, @Valid @RequestBody EnabledRequest body, HttpServletRequest request) {
+        return ApiSuccessResponse.of(applications.setEnabled(AdminSupport.currentAdmin(), companyId, applicationId,
+                body.enabled(), RequestContextResolver.from(request)));
     }
 
     @PostMapping("/{companyId}/approve")
-    public ApiSuccessResponse<CompanyView> approve(@PathVariable UUID companyId) {
-        return view(review.approve(AdminSupport.currentAdmin(), companyId));
+    public ApiSuccessResponse<CompanyView> approve(@PathVariable UUID companyId, HttpServletRequest request) {
+        return view(review.approve(AdminSupport.currentAdmin(), companyId, RequestContextResolver.from(request)));
     }
 
     @PostMapping("/{companyId}/reject")
     public ApiSuccessResponse<CompanyView> reject(@PathVariable UUID companyId,
-            @Valid @RequestBody RejectRequest body) {
-        return view(review.reject(AdminSupport.currentAdmin(), companyId, body.reason()));
+            @Valid @RequestBody RejectRequest body, HttpServletRequest request) {
+        return view(review.reject(AdminSupport.currentAdmin(), companyId, body.reason(),
+                RequestContextResolver.from(request)));
     }
 
     @PostMapping("/{companyId}/suspend")
-    public ApiSuccessResponse<CompanyView> suspend(@PathVariable UUID companyId) {
-        return view(review.suspend(companyId));
+    public ApiSuccessResponse<CompanyView> suspend(@PathVariable UUID companyId, HttpServletRequest request) {
+        return view(review.suspend(AdminSupport.currentAdmin(), companyId, RequestContextResolver.from(request)));
     }
 
     @PostMapping("/{companyId}/reactivate")
-    public ApiSuccessResponse<CompanyView> reactivate(@PathVariable UUID companyId) {
-        return view(review.reactivate(companyId));
+    public ApiSuccessResponse<CompanyView> reactivate(@PathVariable UUID companyId, HttpServletRequest request) {
+        return view(review.reactivate(AdminSupport.currentAdmin(), companyId, RequestContextResolver.from(request)));
     }
 
     private ApiSuccessResponse<CompanyView> view(Company company) {

@@ -9,6 +9,8 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,8 +22,10 @@ import com.cherrycore.catalog.domain.ApplicationPermission;
 import com.cherrycore.catalog.domain.ApplicationStatus;
 import com.cherrycore.catalog.domain.CatalogErrorCode;
 import com.cherrycore.catalog.domain.PermissionCode;
+import com.cherrycore.shared.application.port.FileStorage;
 import com.cherrycore.shared.domain.error.DomainException;
 import com.cherrycore.shared.domain.id.UuidV7;
+import com.cherrycore.shared.domain.media.ImageType;
 
 /**
  * Catálogo de apps y permisos.
@@ -34,14 +38,89 @@ public class CatalogService {
 
     public static final int MAX_PERMISSIONS_PER_APPLICATION = 500;
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(CatalogService.class);
+    private static final String LOG_OLD_LOGO_NOT_DELETED = "Old application logo could not be deleted [{}]";
+
     private final ApplicationRepository applications;
     private final PermissionRepository permissions;
+    private final ApplicationLogos logos;
+    private final FileStorage storage;
+    private final CatalogSettings settings;
     private final Clock clock;
 
-    public CatalogService(ApplicationRepository applications, PermissionRepository permissions, Clock clock) {
+    public CatalogService(ApplicationRepository applications, PermissionRepository permissions,
+            ApplicationLogos logos, FileStorage storage, CatalogSettings settings, Clock clock) {
         this.applications = applications;
         this.permissions = permissions;
+        this.logos = logos;
+        this.storage = storage;
+        this.settings = settings;
         this.clock = clock;
+    }
+
+    /**
+     * Nombre y logo de una app activa, para mostrarlos en el login. Vacío si
+     * no existe o está desactivada.
+     */
+    @Transactional(readOnly = true)
+    public Optional<ApplicationBranding> brandingOf(String code) {
+        if (code == null || code.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            return applications.findByCode(new ApplicationCode(code))
+                    .filter(Application::isActive)
+                    .map(application -> new ApplicationBranding(application.name(), logos.urlOf(application)));
+        } catch (DomainException invalidCode) {
+            return Optional.empty();
+        }
+    }
+
+    public String logoUrlOf(Application application) {
+        return logos.urlOf(application);
+    }
+
+    /**
+     * Sube el logo de la app. El formato se comprueba por el contenido (PNG,
+     * JPEG o WEBP; nunca SVG), no por el nombre ni el tipo que diga el navegador.
+     */
+    @Transactional
+    public Application uploadLogo(UUID applicationId, byte[] content) {
+        Application application = get(applicationId);
+        if (content.length > settings.maxLogoBytes()) {
+            throw new DomainException(CatalogErrorCode.LOGO_TOO_LARGE);
+        }
+        ImageType type = ImageType.detect(content)
+                .orElseThrow(() -> new DomainException(CatalogErrorCode.LOGO_INVALID_FORMAT));
+        String previousKey = application.logoKey();
+        String key = logos.keyFor(application.id(), UuidV7.generate(clock), type);
+        storage.storePublic(key, content, type.contentType());
+        application.changeLogo(key);
+        applications.save(application);
+        deleteQuietly(previousKey);
+        return application;
+    }
+
+    @Transactional
+    public Application removeLogo(UUID applicationId) {
+        Application application = get(applicationId);
+        String previousKey = application.logoKey();
+        application.changeLogo(null);
+        applications.save(application);
+        deleteQuietly(previousKey);
+        return application;
+    }
+
+    /* Si falla el borrado del logo anterior solo queda un fichero huérfano: no se interrumpe la operación. */
+    private void deleteQuietly(String key) {
+        if (key == null) {
+            return;
+        }
+        try {
+            storage.delete(key);
+        } catch (RuntimeException deleteFailure) {
+            LOGGER.warn(LOG_OLD_LOGO_NOT_DELETED, key, deleteFailure);
+        }
     }
 
     @Transactional(readOnly = true)

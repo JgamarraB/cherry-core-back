@@ -23,3 +23,11 @@ docker/.env
 # Claves (nunca en git)
 *.pem
 *.p8
+
+### Despliegue (deploy/) ###
+deploy/.env
+deploy/secrets/*
+!deploy/secrets/.gitkeep
+deploy/config/*
+!deploy/config/.gitkeep
+!deploy/.env.prod.example

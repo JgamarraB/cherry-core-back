@@ -1,5 +1,6 @@
 package com.cherrycore.identity.application;
 
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -9,6 +10,7 @@ import com.cherrycore.identity.application.port.AccountRepository;
 import com.cherrycore.identity.application.port.AccountSessionRevoker;
 import com.cherrycore.identity.domain.Account;
 import com.cherrycore.identity.domain.AccountType;
+import com.cherrycore.identity.domain.AuditDetail;
 import com.cherrycore.identity.domain.AuthEventType;
 import com.cherrycore.identity.domain.IdentityErrorCode;
 import com.cherrycore.identity.domain.PlatformRole;
@@ -46,7 +48,7 @@ public class AccountAdministrationService {
         account.disable();
         accounts.save(account);
         sessionRevoker.revokeAll(accountId);
-        eventLogger.log(AuthEventType.ACCOUNT_DISABLED_BY_ADMIN, accountId, context);
+        eventLogger.log(AuthEventType.ACCOUNT_DISABLED_BY_ADMIN, accountId, context, actor(adminId));
         return account;
     }
 
@@ -55,16 +57,16 @@ public class AccountAdministrationService {
         Account account = otherAccount(adminId, accountId);
         account.reactivate();
         accounts.save(account);
-        eventLogger.log(AuthEventType.ACCOUNT_ENABLED_BY_ADMIN, accountId, context);
+        eventLogger.log(AuthEventType.ACCOUNT_ENABLED_BY_ADMIN, accountId, context, actor(adminId));
         return account;
     }
 
     @Transactional
-    public Account unlock(UUID accountId, RequestContext context) {
+    public Account unlock(UUID adminId, UUID accountId, RequestContext context) {
         Account account = find(accountId);
         account.unlock();
         accounts.save(account);
-        eventLogger.log(AuthEventType.ACCOUNT_UNLOCKED_BY_ADMIN, accountId, context);
+        eventLogger.log(AuthEventType.ACCOUNT_UNLOCKED_BY_ADMIN, accountId, context, actor(adminId));
         return account;
     }
 
@@ -77,12 +79,13 @@ public class AccountAdministrationService {
         otherAccount(adminId, accountId);
         mfa.reset(accountId);
         sessionRevoker.revokeAll(accountId);
-        eventLogger.log(AuthEventType.MFA_RESET_BY_ADMIN, accountId, context);
+        eventLogger.log(AuthEventType.MFA_RESET_BY_ADMIN, accountId, context, actor(adminId));
     }
 
     @Transactional
-    public void sendPasswordReset(UUID accountId, RequestContext context) {
+    public void sendPasswordReset(UUID adminId, UUID accountId, RequestContext context) {
         passwordReset.requestFor(find(accountId).id(), context);
+        eventLogger.log(AuthEventType.PASSWORD_RESET_SENT_BY_ADMIN, accountId, context, actor(adminId));
     }
 
     @Transactional
@@ -91,16 +94,25 @@ public class AccountAdministrationService {
         if (account.type() != AccountType.STAFF) {
             throw new DomainException(IdentityErrorCode.NOT_A_STAFF_ACCOUNT);
         }
+        boolean wasSuperAdmin = account.isSuperAdmin();
         if (superAdmin) {
             account.grantPlatformRole(PlatformRole.SUPER_ADMIN);
-        } else if (account.isSuperAdmin()) {
+        } else if (wasSuperAdmin) {
             requireAnotherSuperAdmin(account);
             account.revokePlatformRole();
         }
         accounts.save(account);
+        if (superAdmin != wasSuperAdmin) {
+            eventLogger.log(superAdmin ? AuthEventType.SUPER_ADMIN_GRANTED : AuthEventType.SUPER_ADMIN_REVOKED,
+                    accountId, context, actor(adminId));
+        }
         // El rol va en la sesión: se cierran sus sesiones para aplicarlo.
         sessionRevoker.revokeAll(accountId);
         return account;
+    }
+
+    private static Map<String, String> actor(UUID adminId) {
+        return Map.of(AuditDetail.ACTOR_ACCOUNT_ID, adminId.toString());
     }
 
     private void requireAnotherSuperAdmin(Account account) {

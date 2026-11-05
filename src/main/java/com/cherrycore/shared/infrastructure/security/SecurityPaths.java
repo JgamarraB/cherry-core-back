@@ -21,6 +21,10 @@ public final class SecurityPaths {
     public static final String COMPANY_API = "/api/company/**";
     public static final String COMPANY_API_ROOT = "/api/company";
     public static final String ADMIN_API = "/api/admin/**";
+    /** Marca de la app en el login (GET público, con límite por IP). */
+    public static final String APP_BRANDING_PREFIX = "/api/auth/apps/";
+    /** Descarga de mis datos (GET con límite por IP). */
+    public static final String ACCOUNT_EXPORT = "/api/account/export";
 
     private SecurityPaths() {
     }
