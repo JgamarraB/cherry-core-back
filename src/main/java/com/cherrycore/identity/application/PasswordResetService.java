@@ -2,6 +2,7 @@ package com.cherrycore.identity.application;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -74,6 +75,19 @@ public class PasswordResetService {
                     notifier.passwordResetRequested(account, rawToken);
                     eventLogger.log(AuthEventType.PASSWORD_RESET_REQUESTED, account.id(), context);
                 });
+    }
+
+    /**
+     * Envía el enlace de restablecer contraseña a una cuenta concreta (lo usa
+     * el superadmin y el alta del primer superadmin).
+     */
+    @Transactional
+    public void requestFor(UUID accountId, RequestContext context) {
+        accountRepository.findById(accountId).filter(account -> !account.isDisabled()).ifPresent(account -> {
+            notifier.passwordResetRequested(account, tokenIssuer.issue(account, OneTimeTokenPurpose.PASSWORD_RESET,
+                    settings.passwordResetTtl()));
+            eventLogger.log(AuthEventType.PASSWORD_RESET_REQUESTED, account.id(), context);
+        });
     }
 
     /**

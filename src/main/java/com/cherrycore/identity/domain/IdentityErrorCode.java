@@ -35,6 +35,9 @@ public enum IdentityErrorCode implements ErrorCode {
     SOCIAL_EMAIL_NOT_VERIFIED(ErrorCategory.FORBIDDEN, "The provider did not confirm the email address"),
     SOCIAL_ACCOUNT_NOT_FOUND(ErrorCategory.NOT_FOUND, "No staff account is linked to this social login"),
     NO_PENDING_SOCIAL_SIGNUP(ErrorCategory.BUSINESS_RULE, "No social sign-up in progress"),
+    LAST_SUPER_ADMIN(ErrorCategory.BUSINESS_RULE, "The platform must keep at least one super admin"),
+    CANNOT_MODIFY_OWN_ACCOUNT(ErrorCategory.BUSINESS_RULE, "You cannot do this on your own account"),
+    NOT_A_STAFF_ACCOUNT(ErrorCategory.INVALID_INPUT, "Only staff accounts can be super admins"),
     ACCOUNT_NOT_FOUND(ErrorCategory.NOT_FOUND, "Account not found");
 
     private final ErrorCategory category;

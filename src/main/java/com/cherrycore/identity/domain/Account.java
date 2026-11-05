@@ -154,6 +154,10 @@ public class Account {
         platformRole = Objects.requireNonNull(role);
     }
 
+    public void revokePlatformRole() {
+        platformRole = null;
+    }
+
     public boolean isSuperAdmin() {
         return platformRole == PlatformRole.SUPER_ADMIN;
     }

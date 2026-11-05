@@ -11,6 +11,9 @@ public final class ClientSettingNames {
     /** Código de la app del catálogo (sus permisos van en el token de backoffice). */
     public static final String APPLICATION = "settings.client.cherrycore.application";
 
+    /** Puede pedir tokens de máquina (client_credentials) para sincronizar permisos. */
+    public static final String MACHINE_ACCESS = "settings.client.cherrycore.machine-access";
+
     private ClientSettingNames() {
     }
 }

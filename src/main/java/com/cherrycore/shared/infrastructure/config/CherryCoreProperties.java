@@ -43,7 +43,8 @@ public record CherryCoreProperties(
         @NotNull @Valid OAuth oauth,
         @NotNull @Valid Branding branding,
         @NotNull @Valid Storage storage,
-        @Valid Social social
+        @Valid Social social,
+        @Valid Bootstrap bootstrap
 ) {
 
     public static final String PREFIX = "cherrycore";
@@ -255,6 +256,12 @@ public record CherryCoreProperties(
         }
     }
 
+    /**
+     * @param superAdminEmail email del primer superadmin (solo se usa si aún no hay ninguno)
+     */
+    public record Bootstrap(@Email String superAdminEmail) {
+    }
+
     public record OAuth(@NotNull List<@Valid Client> clients) {
     }
 
@@ -274,7 +281,8 @@ public record CherryCoreProperties(
             String applicationCode,
             @NotEmpty List<URI> redirectUris,
             List<URI> postLogoutRedirectUris,
-            @NotEmpty Set<String> scopes
+            @NotEmpty Set<String> scopes,
+            boolean machineAccess
     ) {
 
         @AssertTrue(message = "staff clients need an application-code (the app whose permissions go in the token)")

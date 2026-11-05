@@ -175,6 +175,10 @@ cherrycore:
     # Aplicaciones que pueden pedir tokens. Se definen por entorno.
     clients: []
 
+  bootstrap:
+    # Primer superadmin: se crea al arrancar si no existe ninguno (recibe un email para poner su contraseña).
+    super-admin-email: ${SUPER_ADMIN_EMAIL:}
+
   branding:
     # Nombre en los emails de cuenta (los de una empresa llevan su logo o su nombre).
     platform-name: CherryCore

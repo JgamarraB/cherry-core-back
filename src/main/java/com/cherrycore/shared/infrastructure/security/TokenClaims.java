@@ -14,6 +14,8 @@ public final class TokenClaims {
     public static final String TENANT_ROLE = "tenant_role";
     /** Solo backoffice: permisos en ESTA app para esa empresa. */
     public static final String PERMISSIONS = "permissions";
+    /** Solo en tokens de máquina: código de la app del catálogo. */
+    public static final String APPLICATION = "application";
     /** Solo si es superadmin de la plataforma. */
     public static final String PLATFORM_ROLE = "platform_role";
 

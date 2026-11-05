@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.UUID;
 
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
@@ -63,6 +64,15 @@ class CherryCoreTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingCont
 
     @Override
     public void customize(JwtEncodingContext context) {
+        if (AuthorizationGrantType.CLIENT_CREDENTIALS.equals(context.getAuthorizationGrantType())) {
+            // Token de máquina (backend de una app): sin usuario, solo la app.
+            Object application = context.getRegisteredClient().getClientSettings()
+                    .getSetting(ClientSettingNames.APPLICATION);
+            if (application != null) {
+                context.getClaims().claim(TokenClaims.APPLICATION, application.toString());
+            }
+            return;
+        }
         Account account = activeAccount(context.getPrincipal());
         checkAudience(context.getRegisteredClient(), account);
         TenantAccess tenantAccess = account.type() == AccountType.STAFF
