@@ -19,7 +19,6 @@ import org.springframework.security.oauth2.server.authorization.client.JdbcRegis
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 
 import com.cherrycore.shared.infrastructure.config.CherryCoreProperties;
@@ -46,7 +45,8 @@ public class AuthorizationServerConfig {
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
     SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http, CherryCoreProperties properties,
-            JwtDecoder jwtDecoder, SecurityHeadersCustomizer securityHeaders) throws Exception {
+            JwtDecoder jwtDecoder, SecurityHeadersCustomizer securityHeaders, RegisteredClientRepository clients)
+            throws Exception {
         http
                 .oauth2AuthorizationServer(authorizationServer -> {
                     http.securityMatcher(authorizationServer.getEndpointsMatcher());
@@ -58,7 +58,7 @@ public class AuthorizationServerConfig {
                         .decoder(jwtDecoder)
                         .jwtAuthenticationConverter(new JwtAccountAuthenticationConverter())))
                 .exceptionHandling(exceptions -> exceptions.defaultAuthenticationEntryPointFor(
-                        new LoginUrlAuthenticationEntryPoint(properties.frontend().loginUrl().toString()),
+                        new AppAwareLoginEntryPoint(properties.frontend().loginUrl(), clients),
                         new MediaTypeRequestMatcher(MediaType.TEXT_HTML)))
                 .cors(Customizer.withDefaults())
                 .headers(securityHeaders::apply);

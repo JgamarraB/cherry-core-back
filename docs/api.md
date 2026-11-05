@@ -14,6 +14,8 @@ Referencia para el frontend propio de CherryCore: login, registro, "mi cuenta", 
 
 ## 1. Login (`/api/auth`)
 
+Si una app manda al usuario a `/oauth2/authorize` sin sesión, CherryCore le lleva a `/login?client_id=<app>` (solo si la app está registrada). Con `client_id` el login ofrece cliente y empresa; sin él, es solo acceso de empresa (los clientes son de cada app).
+
 El login va por pasos. Cada respuesta trae `data.status` con el siguiente paso:
 
 | `status` | Qué muestra el frontend |
