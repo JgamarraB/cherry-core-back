@@ -1,7 +1,9 @@
 package com.cherrycore.auth.infrastructure.social;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,6 +55,10 @@ class SocialLoginHandlers implements AuthenticationSuccessHandler, Authenticatio
     private static final String ERROR_PARAM = "error";
     private static final String SOCIAL_LOGIN_FAILED = "SOCIAL_LOGIN_FAILED";
     private static final String TRUE = "true";
+    /** Claim de Google con el dominio de Google Workspace de la cuenta. */
+    private static final String GOOGLE_HOSTED_DOMAIN = "hd";
+    private static final Set<String> GMAIL_DOMAINS = Set.of("gmail.com", "googlemail.com");
+    private static final char EMAIL_DOMAIN_SEPARATOR = '@';
 
     private final SocialLoginService socialLogin;
     private final LoginFlow loginFlow;
@@ -115,17 +121,38 @@ class SocialLoginHandlers implements AuthenticationSuccessHandler, Authenticatio
         return type instanceof AccountType accountType ? accountType : AccountType.CUSTOMER;
     }
 
+    /*
+     * Google solo garantiza que el email es HOY de esa persona si es una
+     * cuenta de Gmail o de un dominio de Google Workspace (claim "hd"). Una
+     * cuenta de Google creada con otro email (p. ej. @empresa.com) lo verificó
+     * una vez, pero quien lo tenía entonces puede no ser quien lo tiene ahora:
+     * se trata como email NO verificado (no se vincula ni se crea cuenta con él).
+     */
+    static boolean googleIsAuthoritative(String email, Map<String, Object> attributes) {
+        Object hostedDomain = attributes.get(GOOGLE_HOSTED_DOMAIN);
+        if (hostedDomain instanceof String domain && !domain.isBlank()) {
+            return true;
+        }
+        if (email == null) {
+            return false;
+        }
+        int at = email.lastIndexOf(EMAIL_DOMAIN_SEPARATOR);
+        return at >= 0 && GMAIL_DOMAINS.contains(email.substring(at + 1).toLowerCase(Locale.ROOT));
+    }
+
     static SocialProfile profileOf(OAuth2AuthenticationToken token) {
         SocialProvider provider = SocialProvider.fromRegistrationId(token.getAuthorizedClientRegistrationId())
                 .orElseThrow(() -> new DomainException(IdentityErrorCode.SOCIAL_PROVIDER_NOT_AVAILABLE));
         OAuth2User user = token.getPrincipal();
         Map<String, Object> attributes = user.getAttributes();
         Object verified = attributes.get(StandardClaimNames.EMAIL_VERIFIED);
+        String email = (String) attributes.get(StandardClaimNames.EMAIL);
         // Apple envía email_verified como texto ("true"), Google como booleano.
-        boolean emailVerified = Boolean.TRUE.equals(verified) || TRUE.equals(String.valueOf(verified));
+        boolean emailVerified = (Boolean.TRUE.equals(verified) || TRUE.equals(String.valueOf(verified)))
+                && (provider != SocialProvider.GOOGLE || googleIsAuthoritative(email, attributes));
         return new SocialProfile(provider,
                 String.valueOf(attributes.get(StandardClaimNames.SUB)),
-                (String) attributes.get(StandardClaimNames.EMAIL),
+                email,
                 emailVerified,
                 (String) attributes.get(StandardClaimNames.GIVEN_NAME),
                 (String) attributes.get(StandardClaimNames.FAMILY_NAME));

@@ -29,6 +29,7 @@ import com.cherrycore.support.CustomerFixtures;
 import com.cherrycore.support.IntegrationTest;
 import com.cherrycore.support.JsonBodies;
 import com.cherrycore.support.StaffFixtures;
+import com.cherrycore.support.TotpCodes;
 
 @IntegrationTest
 class AdminApiIntegrationTest {
@@ -53,12 +54,13 @@ class AdminApiIntegrationTest {
 
     private BrowserSession admin;
     private String adminEmail;
+    private String adminTotpSecret;
 
     @BeforeEach
     void setUp() throws Exception {
         adminEmail = StaffFixtures.createSuperAdmin(accounts, hasher, staffUsers);
         admin = new BrowserSession(mockMvc);
-        StaffFixtures.firstLoginWithMfaSetup(admin, adminEmail);
+        adminTotpSecret = StaffFixtures.firstLoginWithMfaSetup(admin, adminEmail);
     }
 
     @Test
@@ -161,6 +163,43 @@ class AdminApiIntegrationTest {
         String newSecret = JsonBodies.read(rotated, "$.data.clientSecret");
         assertThat(tokenRequest(clientId, secret).getResponse().getStatus()).isEqualTo(401);
         assertThat(tokenRequest(clientId, newSecret).getResponse().getStatus()).isEqualTo(200);
+    }
+
+    /*
+     * La app "cherrycore" es la gestión de empresas: un cliente enlazado a ella
+     * con acceso de máquina podría retirar sus permisos del catálogo (y romper
+     * la gestión de todas las empresas); uno de backoffice los llevaría en sus tokens.
+     */
+    @Test
+    void clientsCannotBeBoundToTheReservedCherryCoreApplication() throws Exception {
+        MvcResult attempt = admin.call(HttpMethod.POST, "/api/admin/clients", clientBody(
+                "evil-" + UUID.randomUUID().toString().substring(0, 8), "cherrycore",
+                "https://evil.example.com/login/oauth2/code/cherrycore"));
+
+        assertThat(attempt.getResponse().getStatus()).isEqualTo(400);
+        assertThat(JsonBodies.<String>read(attempt, "$.error.code")).isEqualTo("RESERVED_APPLICATION");
+    }
+
+    /*
+     * El panel no deja quitar el último superadmin, pero "borrar mi cuenta" sí
+     * lo dejaba: la plataforma se quedaba sin nadie que aprobara empresas.
+     */
+    @Test
+    void lastSuperAdminCannotDeleteTheirOwnAccount() throws Exception {
+        UUID myId = StaffFixtures.accountIdOf(admin);
+        accounts.findSuperAdmins().stream()
+                .filter(other -> !other.id().equals(myId))
+                .forEach(other -> {
+                    other.revokePlatformRole();
+                    accounts.save(other);
+                });
+
+        MvcResult attempt = admin.call(HttpMethod.POST, "/api/account/delete",
+                "{\"currentPassword\": \"" + StaffFixtures.PASSWORD + "\", \"mfaCode\": \""
+                        + TotpCodes.code(adminTotpSecret, 1) + "\"}");
+
+        assertThat(JsonBodies.<String>read(attempt, "$.error.code")).isEqualTo("LAST_SUPER_ADMIN");
+        assertThat(admin.get("/api/account").getResponse().getStatus()).isEqualTo(200);
     }
 
     @Test

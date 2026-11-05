@@ -95,6 +95,7 @@ public class StaffInvitationService {
         if (role.isOwner() && !context.isOwner()) {
             throw new DomainException(CompanyErrorCode.OWNER_ROLE_RESERVED);
         }
+        access.requireCanGrant(context, role.permissionIds());
         accounts.findByTypeAndEmail(AccountType.STAFF, email)
                 .flatMap(account -> memberships.findByCompanyAndStaffUser(company.id(), account.id()))
                 .ifPresent(existing -> {

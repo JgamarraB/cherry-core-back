@@ -73,6 +73,31 @@ class StaffLoginAndMfaIntegrationTest {
         assertThat(stored).doesNotContain(secret);
     }
 
+    /*
+     * Un superadmin desactiva una cuenta comprometida mientras el atacante
+     * está en el paso del código: cerrar sus sesiones no borra el login a
+     * medias (aún no tiene usuario), así que el segundo paso debe comprobarlo.
+     */
+    @Test
+    void accountDisabledDuringTheSecondStepCannotFinishTheLogin() throws Exception {
+        String email = StaffFixtures.registerCompany(browser, mailbox, "Taller Bloqueado");
+        String secret = StaffFixtures.firstLoginWithMfaSetup(browser, email);
+
+        BrowserSession attacker = new BrowserSession(mockMvc);
+        MvcResult password = attacker.postJson(AuthPaths.STAFF_LOGIN, StaffFixtures.loginBody(email));
+        assertThat(JsonBodies.<String>read(password, "$.data.status")).isEqualTo("MFA_REQUIRED");
+
+        jdbc.sql("UPDATE accounts SET status = 'DISABLED' WHERE email = ?").param(email).update();
+
+        MvcResult code = attacker.postJson(AuthPaths.MFA_VERIFY,
+                "{\"code\": \"" + TotpCodes.code(secret, 1) + "\"}");
+        assertThat(code.getResponse().getStatus()).isEqualTo(401);
+        assertThat(JsonBodies.<String>read(code, "$.error.code")).isEqualTo("INVALID_CREDENTIALS");
+        MvcResult session = attacker.get(AuthPaths.BASE + AuthPaths.SESSION);
+        assertThat(JsonBodies.<Boolean>read(session, "$.data.authenticated")).isFalse();
+        assertThat(JsonBodies.<String>read(session, "$.data.pendingStep")).isNull();
+    }
+
     @Test
     void approvedCompanyIsSelectedAutomaticallyAfterMfa() throws Exception {
         String email = StaffFixtures.registerCompany(browser, mailbox, "Taller Dos");

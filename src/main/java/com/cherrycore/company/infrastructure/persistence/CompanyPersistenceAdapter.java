@@ -65,6 +65,11 @@ class CompanyPersistenceAdapter implements CompanyRepository, CompanyApplication
     }
 
     @Override
+    public void lockForUpdate(UUID companyId) {
+        companies.findWithLockById(companyId);
+    }
+
+    @Override
     public void save(Company company) {
         CompanyJpaEntity entity = companies.findById(company.id()).orElseGet(() -> new CompanyJpaEntity(company.id()));
         CompanyProfileData profile = company.profile();

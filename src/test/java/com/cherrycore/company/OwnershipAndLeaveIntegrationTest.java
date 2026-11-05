@@ -4,6 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -127,6 +132,42 @@ class OwnershipAndLeaveIntegrationTest {
         MvcResult again = member.session().call(HttpMethod.POST,
                 "/api/account/companies/" + owner.companyId() + "/leave", null);
         assertThat(JsonBodies.<String>read(again, "$.error.code")).isEqualTo("MEMBER_NOT_FOUND");
+    }
+
+    /*
+     * Dos dueños se suspenden el uno al otro a la vez. Sin bloqueo, cada
+     * petición ve "queda otro dueño" antes de que la otra confirme, y la
+     * empresa se queda sin ningún OWNER activo.
+     */
+    @Test
+    void twoOwnersSuspendingEachOtherAtTheSameTimeLeaveOneOwner() throws Exception {
+        Member second = addMember("OWNER");
+        String firstMembership = membershipIdOf(owner.email());
+        String secondMembership = membershipIdOf(second.email());
+
+        CyclicBarrier start = new CyclicBarrier(2);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<Integer> one = pool.submit(() -> {
+                start.await();
+                return owner.session().call(HttpMethod.POST,
+                        "/api/company/members/" + secondMembership + "/suspend", null).getResponse().getStatus();
+            });
+            Future<Integer> two = pool.submit(() -> {
+                start.await();
+                return second.session().call(HttpMethod.POST,
+                        "/api/company/members/" + firstMembership + "/suspend", null).getResponse().getStatus();
+            });
+            assertThat(List.of(one.get(30, TimeUnit.SECONDS), two.get(30, TimeUnit.SECONDS))).contains(200);
+        } finally {
+            pool.shutdownNow();
+        }
+
+        long activeOwners = jdbc.sql("""
+                SELECT COUNT(*) FROM memberships m JOIN company_roles r ON r.id = m.role_id
+                 WHERE m.company_id = ? AND r.code = 'OWNER' AND m.status = 'ACTIVE' AND m.deleted_at IS NULL
+                """).param(owner.companyId()).query(Long.class).single();
+        assertThat(activeOwners).isEqualTo(1);
     }
 
     @Test

@@ -130,6 +130,55 @@ class CompanyManagementIntegrationTest {
         assertThat(JsonBodies.<String>read(renameSystem, "$.error.code")).isEqualTo("SYSTEM_ROLE_IMMUTABLE");
     }
 
+    /*
+     * Escalada dentro de la empresa: con "gestionar miembros" alguien podía
+     * darse a sí mismo (o a otra cuenta suya, invitándola) el rol ADMIN; con
+     * "gestionar roles", añadir a su propio rol cualquier permiso. Quien no es
+     * OWNER solo puede dar permisos que ya tiene.
+     */
+    @Test
+    void membersManagerCannotGrantMoreThanTheyHave() throws Exception {
+        createRole("MANAGER", permissionId("company.members.view"), permissionId("company.members.manage"));
+        BrowserSession manager = addMember("MANAGER");
+        String ownMembership = JsonBodies.read(manager.get("/api/company/me"), "$.data.membershipId");
+
+        MvcResult selfPromotion = manager.call(HttpMethod.PUT, "/api/company/members/" + ownMembership,
+                "{\"roleId\": \"" + roleId("ADMIN") + "\"}");
+        assertThat(selfPromotion.getResponse().getStatus()).isEqualTo(403);
+        assertThat(JsonBodies.<String>read(selfPromotion, "$.error.code")).isEqualTo("ROLE_ABOVE_OWN_PERMISSIONS");
+        assertThat(JsonBodies.<String>read(manager.get("/api/company/me"), "$.data.roleCode")).isEqualTo("MANAGER");
+
+        MvcResult inviteAdmin = manager.call(HttpMethod.POST, "/api/company/invitations",
+                "{\"email\": \"" + CustomerFixtures.uniqueEmail() + "\", \"roleId\": \"" + roleId("ADMIN") + "\"}");
+        assertThat(JsonBodies.<String>read(inviteAdmin, "$.error.code")).isEqualTo("ROLE_ABOVE_OWN_PERMISSIONS");
+
+        // Lo que sí tiene lo puede dar.
+        MvcResult inviteStaff = manager.call(HttpMethod.POST, "/api/company/invitations",
+                "{\"email\": \"" + CustomerFixtures.uniqueEmail() + "\", \"roleId\": \"" + roleId("STAFF") + "\"}");
+        assertThat(inviteStaff.getResponse().getStatus()).isEqualTo(201);
+    }
+
+    @Test
+    void rolesManagerCannotAddPermissionsTheyDoNotHave() throws Exception {
+        String rolesManage = permissionId("company.roles.manage");
+        String roleId = createRole("ROLE_EDITOR", rolesManage);
+        BrowserSession editor = addMember("ROLE_EDITOR");
+
+        MvcResult escalate = editor.call(HttpMethod.PUT, "/api/company/roles/" + roleId,
+                "{\"permissionIds\": [\"" + rolesManage + "\", \"" + permissionId("company.members.manage") + "\"]}");
+        assertThat(JsonBodies.<String>read(escalate, "$.error.code")).isEqualTo("ROLE_ABOVE_OWN_PERMISSIONS");
+
+        MvcResult newRole = editor.call(HttpMethod.POST, "/api/company/roles",
+                "{\"code\": \"SUPER\", \"name\": \"Super\", \"permissionIds\": [\""
+                        + permissionId("company.profile.manage") + "\"]}");
+        assertThat(JsonBodies.<String>read(newRole, "$.error.code")).isEqualTo("ROLE_ABOVE_OWN_PERMISSIONS");
+
+        // Quitar permisos o crear roles con los suyos sí puede.
+        assertThat(editor.call(HttpMethod.POST, "/api/company/roles",
+                "{\"code\": \"HELPER\", \"name\": \"Ayudante\", \"permissionIds\": [\"" + rolesManage + "\"]}")
+                .getResponse().getStatus()).isEqualTo(201);
+    }
+
     @Test
     void customRolesCanBeCreatedAndDeletedWhenUnused() throws Exception {
         MvcResult created = owner.session().call(HttpMethod.POST, "/api/company/roles",
@@ -199,6 +248,14 @@ class CompanyManagementIntegrationTest {
         String secret = JsonBodies.read(member.postJson(AuthPaths.MFA_SETUP, "{}"), "$.data.secret");
         member.postJson(AuthPaths.MFA_SETUP_CONFIRM, "{\"code\": \"" + TotpCodes.code(secret, 0) + "\"}");
         return member;
+    }
+
+    private String createRole(String code, String... permissionIds) throws Exception {
+        String ids = String.join("\", \"", permissionIds);
+        MvcResult created = owner.session().call(HttpMethod.POST, "/api/company/roles",
+                "{\"code\": \"" + code + "\", \"name\": \"" + code + "\", \"permissionIds\": [\"" + ids + "\"]}");
+        assertThat(created.getResponse().getStatus()).isEqualTo(201);
+        return JsonBodies.read(created, "$.data.id");
     }
 
     private String roleId(String code) throws Exception {

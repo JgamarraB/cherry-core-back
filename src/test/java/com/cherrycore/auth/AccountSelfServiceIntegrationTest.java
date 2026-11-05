@@ -116,6 +116,63 @@ class AccountSelfServiceIntegrationTest {
         assertThat(new BrowserSession(mockMvc).login(email, PASSWORD).getResponse().getStatus()).isEqualTo(401);
     }
 
+    /*
+     * Quien tenía la sesión pide cambiar el email al suyo. La víctima recupera
+     * la cuenta con "olvidé mi contraseña": el enlace de cambio de email que
+     * recibió el atacante ya no debe servir (si no, se quedaría con la cuenta).
+     */
+    @Test
+    void passwordResetCancelsAPendingEmailChange() throws Exception {
+        String attackerEmail = CustomerFixtures.uniqueEmail();
+        session.call(HttpMethod.POST, "/api/account/email",
+                "{\"currentPassword\": \"" + PASSWORD + "\", \"newEmail\": \"" + attackerEmail + "\"}");
+        String emailChangeToken = mailbox.awaitToken(attackerEmail, "Confirma tu nuevo email");
+
+        BrowserSession victim = new BrowserSession(mockMvc);
+        victim.postJson(AuthPaths.CUSTOMER_FORGOT_PASSWORD, "{\"email\": \"" + email + "\"}");
+        String resetToken = mailbox.awaitToken(email, CustomerFixtures.RESET_SUBJECT_ES);
+        assertThat(victim.postJson(AuthPaths.RESET_PASSWORD, "{\"token\": \"" + resetToken
+                + "\", \"newPassword\": \"" + NEW_PASSWORD + "\"}").getResponse().getStatus()).isEqualTo(200);
+
+        MvcResult confirm = new BrowserSession(mockMvc).postJson(AuthPaths.EMAIL_CHANGE_CONFIRM,
+                "{\"token\": \"" + emailChangeToken + "\"}");
+        assertThat(JsonBodies.<String>read(confirm, "$.error.code")).isEqualTo("INVALID_OR_EXPIRED_TOKEN");
+        assertThat(new BrowserSession(mockMvc).login(email, NEW_PASSWORD).getResponse().getStatus()).isEqualTo(200);
+    }
+
+    /*
+     * Un enlace de "olvidé mi contraseña" enviado al email anterior (quizá
+     * comprometido, por eso se cambia) no vale tras cambiar el email, ni tras
+     * cambiar la contraseña.
+     */
+    @Test
+    void credentialChangesCancelPendingPasswordResetLinks() throws Exception {
+        new BrowserSession(mockMvc).postJson(AuthPaths.CUSTOMER_FORGOT_PASSWORD, "{\"email\": \"" + email + "\"}");
+        String oldMailboxReset = mailbox.awaitToken(email, CustomerFixtures.RESET_SUBJECT_ES);
+
+        String newEmail = CustomerFixtures.uniqueEmail();
+        session.call(HttpMethod.POST, "/api/account/email",
+                "{\"currentPassword\": \"" + PASSWORD + "\", \"newEmail\": \"" + newEmail + "\"}");
+        String token = mailbox.awaitToken(newEmail, "Confirma tu nuevo email");
+        new BrowserSession(mockMvc).postJson(AuthPaths.EMAIL_CHANGE_CONFIRM, "{\"token\": \"" + token + "\"}");
+
+        MvcResult afterEmailChange = new BrowserSession(mockMvc).postJson(AuthPaths.RESET_PASSWORD,
+                "{\"token\": \"" + oldMailboxReset + "\", \"newPassword\": \"" + NEW_PASSWORD + "\"}");
+        assertThat(JsonBodies.<String>read(afterEmailChange, "$.error.code")).isEqualTo("INVALID_OR_EXPIRED_TOKEN");
+
+        mailbox.clear();
+        new BrowserSession(mockMvc).postJson(AuthPaths.CUSTOMER_FORGOT_PASSWORD,
+                "{\"email\": \"" + newEmail + "\"}");
+        String resetBeforeChange = mailbox.awaitToken(newEmail, CustomerFixtures.RESET_SUBJECT_ES);
+        session.call(HttpMethod.PUT, "/api/account/password",
+                "{\"currentPassword\": \"" + PASSWORD + "\", \"newPassword\": \"" + NEW_PASSWORD + "\"}");
+
+        MvcResult afterPasswordChange = new BrowserSession(mockMvc).postJson(AuthPaths.RESET_PASSWORD,
+                "{\"token\": \"" + resetBeforeChange + "\", \"newPassword\": \"Otra-mas-2028-xx\"}");
+        assertThat(JsonBodies.<String>read(afterPasswordChange, "$.error.code"))
+                .isEqualTo("INVALID_OR_EXPIRED_TOKEN");
+    }
+
     @Test
     void listsSessionsAndClosesOneRemotely() throws Exception {
         BrowserSession otherDevice = new BrowserSession(mockMvc);

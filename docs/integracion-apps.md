@@ -61,6 +61,17 @@ Claims:
 - Toda consulta de backoffice debe filtrar por `tenant_id` del token (nunca de la URL).
 - La app guarda sus propios datos del cliente en su tabla (p. ej. `customers` de Lirgar con el carnet de conducir), enlazada por `sub`.
 
+**Imprescindible** al validar tokens:
+
+```yaml
+spring.security.oauth2.resourceserver.jwt:
+  issuer-uri: https://auth.tudominio.com
+  audiences: lirgar-web   # el client_id de TU app
+```
+
+- Valida siempre `aud` (= tu client_id): sin eso la API aceptaría tokens emitidos para otra app de la plataforma (con su `tenant_id` y sus permisos).
+- Comprueba `account_type` (`CUSTOMER` en APIs de clientes, `STAFF` en backoffice) y no aceptes ID tokens como access token.
+
 ## 4. Sincronizar los permisos al arrancar
 
 El backend de la app pide un token de máquina y envía su lista completa de permisos. Lo que ya no envíe se retira (y se quita de los roles).

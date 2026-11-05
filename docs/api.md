@@ -114,7 +114,7 @@ Solo se entra en empresas **activas** (las pendientes o rechazadas se ven en Mi 
 | `POST /members/{id}/transfer-ownership` | — | solo OWNER → `MemberView` del nuevo dueño; quien la cede pasa a ADMIN y el nuevo dueño recibe un email |
 | `GET /applications` | — | `applications.view` |
 
-Errores: `NO_COMPANY_SELECTED`, `LAST_OWNER`, `OWNER_ROLE_RESERVED`, `SYSTEM_ROLE_IMMUTABLE`, `OWNER_PERMISSIONS_FIXED`, `ROLE_IN_USE`, `ROLE_CODE_ALREADY_EXISTS`, `PERMISSION_NOT_AVAILABLE`, `ALREADY_MEMBER`, `INVALID_OWNERSHIP_TRANSFER`, `LOGO_INVALID_FORMAT`, `LOGO_TOO_LARGE`.
+Errores: `NO_COMPANY_SELECTED`, `LAST_OWNER`, `OWNER_ROLE_RESERVED`, `SYSTEM_ROLE_IMMUTABLE`, `OWNER_PERMISSIONS_FIXED`, `ROLE_IN_USE`, `ROLE_CODE_ALREADY_EXISTS`, `PERMISSION_NOT_AVAILABLE`, `ALREADY_MEMBER`, `INVALID_OWNERSHIP_TRANSFER`, `ROLE_ABOVE_OWN_PERMISSIONS` (403: quien no es OWNER intenta dar permisos que no tiene; al cambiar rol, invitar o crear/editar roles), `LOGO_INVALID_FORMAT`, `LOGO_TOO_LARGE`.
 
 ## 6. Panel de superadmin (`/api/admin`, solo SUPER_ADMIN)
 
@@ -131,4 +131,13 @@ Errores: `NO_COMPANY_SELECTED`, `LAST_OWNER`, `OWNER_ROLE_RESERVED`, `SYSTEM_ROL
 | `GET /clients` · `POST /clients` · `PUT /clients/{clientId}` · `POST /clients/{clientId}/secret` · `DELETE /clients/{clientId}` | apps cliente OAuth (el secreto solo aparece al crear o rotar) |
 | `GET /audit-events?accountId=&type=&from=&to=` | auditoría de seguridad (cada evento con `details`, `actorEmail`, `targetEmail`) |
 
-Errores: `CANNOT_MODIFY_OWN_ACCOUNT`, `LAST_SUPER_ADMIN`, `NOT_A_STAFF_ACCOUNT`, `INVALID_STATUS_TRANSITION`, `REJECTION_REASON_REQUIRED`, `INVALID_CLIENT_ID`, `CLIENT_ID_TAKEN`, `INVALID_REDIRECT_URI`, `INVALID_SCOPE`, `APPLICATION_REQUIRED`.
+Errores: `CANNOT_MODIFY_OWN_ACCOUNT`, `LAST_SUPER_ADMIN`, `NOT_A_STAFF_ACCOUNT`, `INVALID_STATUS_TRANSITION`, `REJECTION_REASON_REQUIRED`, `INVALID_CLIENT_ID`, `CLIENT_ID_TAKEN`, `INVALID_REDIRECT_URI`, `INVALID_SCOPE`, `APPLICATION_REQUIRED`, `RESERVED_APPLICATION` (un cliente no puede enlazarse a `cherrycore`).
+
+## 7. Notas de seguridad
+
+- `POST /api/company/invitations` está limitado por IP como `/api/auth` (`429` + `Retry-After`).
+- `POST /api/account/delete` → `LAST_SUPER_ADMIN` si eres el último superadmin activo.
+- `POST /api/auth/mfa/verify` y `/mfa/setup/confirm` → `401 INVALID_CREDENTIALS` si la cuenta se desactivó durante el login (se descarta el login a medias).
+- Login social: `?error=SOCIAL_EMAIL_NOT_VERIFIED` también para cuentas de Google que no son Gmail ni Workspace.
+- `GET /api/account/export`: `securityEvents[].ip` / `userAgent` son `null` cuando la acción la hizo otra persona.
+- Los enlaces de email (`/password/reset`, `/email-change/confirm`) dan `INVALID_OR_EXPIRED_TOKEN` si la contraseña o el email cambiaron después de enviarlos.

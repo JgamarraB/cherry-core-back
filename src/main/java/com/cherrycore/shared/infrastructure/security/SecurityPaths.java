@@ -23,6 +23,8 @@ public final class SecurityPaths {
     public static final String ADMIN_API = "/api/admin/**";
     /** Marca de la app en el login (GET público, con límite por IP). */
     public static final String APP_BRANDING_PREFIX = "/api/auth/apps/";
+    /** Invitar a una empresa envía un email: con límite por IP, como el registro. */
+    public static final String COMPANY_INVITATIONS = "/api/company/invitations";
     /** Descarga de mis datos (GET con límite por IP). */
     public static final String ACCOUNT_EXPORT = "/api/account/export";
 

@@ -88,9 +88,10 @@ public class LoginFlow {
             }
             throw new DomainException(IdentityErrorCode.INVALID_MFA_CODE);
         }
+        Account account = stillActive(pending, request);
         request.getSession().removeAttribute(PendingLogin.SESSION_ATTRIBUTE);
-        lockout.recordSuccess(pending.accountId());
-        return finish(pending.accountId(), pending.type(), pending.superAdmin(), pending.primaryFactor(), true,
+        lockout.recordSuccess(account.id());
+        return finish(account.id(), account.type(), account.isSuperAdmin(), pending.primaryFactor(), true,
                 request, response);
     }
 
@@ -100,10 +101,11 @@ public class LoginFlow {
 
     MfaSetupConfirmed confirmMfaSetup(String code, HttpServletRequest request, HttpServletResponse response) {
         PendingLogin pending = pending(request);
-        List<String> recoveryCodes = mfa.confirmEnrollment(pending.accountId(), code);
+        Account account = stillActive(pending, request);
+        List<String> recoveryCodes = mfa.confirmEnrollment(account.id(), code);
         request.getSession().removeAttribute(PendingLogin.SESSION_ATTRIBUTE);
-        lockout.recordSuccess(pending.accountId());
-        LoginResponse login = finish(pending.accountId(), pending.type(), pending.superAdmin(),
+        lockout.recordSuccess(account.id());
+        LoginResponse login = finish(account.id(), account.type(), account.isSuperAdmin(),
                 pending.primaryFactor(), true, request, response);
         return new MfaSetupConfirmed(recoveryCodes, login);
     }
@@ -139,6 +141,19 @@ public class LoginFlow {
             }
         }
         return new LoginResponse(LoginStatus.AUTHENTICATED, session.consumeRedirectUrl(request, response));
+    }
+
+    /*
+     * Entre la contraseña y el segundo factor la cuenta puede haberse
+     * desactivado o haber perdido el rol de superadmin: se vuelve a leer de la
+     * base de datos (cerrar sus sesiones no borra un login a medias, que aún no
+     * tiene usuario). Si ya no está activa, el login a medias se descarta.
+     */
+    private Account stillActive(PendingLogin pending, HttpServletRequest request) {
+        return accounts.findActive(pending.accountId()).orElseThrow(() -> {
+            request.getSession().removeAttribute(PendingLogin.SESSION_ATTRIBUTE);
+            return new DomainException(IdentityErrorCode.INVALID_CREDENTIALS);
+        });
     }
 
     private static PendingLogin pending(HttpServletRequest request) {

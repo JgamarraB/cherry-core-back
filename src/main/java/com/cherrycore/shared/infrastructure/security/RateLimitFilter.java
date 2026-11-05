@@ -28,7 +28,8 @@ import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * Limita las peticiones que modifican, por IP y endpoint, en la API de
- * autenticación y de "mi cuenta" (login, registro, MFA, contraseña...), y
+ * autenticación y de "mi cuenta" (login, registro, MFA, contraseña...) y las
+ * invitaciones de empresa (cada una envía un email), y
  * algunas lecturas (marca de la app en el login, descarga de mis datos). Frena ataques de fuerza bruta, credential stuffing y spam
  * de registros/emails. Responde 429 con la cabecera Retry-After.
  *
@@ -77,7 +78,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return false;
         }
         boolean limitedPath = uri.startsWith(SecurityPaths.AUTH_API_PREFIX)
-                || uri.startsWith(SecurityPaths.ACCOUNT_API_PREFIX);
+                || uri.startsWith(SecurityPaths.ACCOUNT_API_PREFIX)
+                || uri.equals(SecurityPaths.COMPANY_INVITATIONS);
         return !limitedPath || !LIMITED_METHODS.contains(request.getMethod());
     }
 

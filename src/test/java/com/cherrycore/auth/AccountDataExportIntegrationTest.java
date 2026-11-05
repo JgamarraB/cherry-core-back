@@ -7,11 +7,15 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import com.cherrycore.company.application.CompanyReviewService;
+import com.cherrycore.company.application.port.StaffUserRepository;
+import com.cherrycore.identity.application.port.AccountRepository;
+import com.cherrycore.identity.application.port.PasswordHasher;
 import com.cherrycore.support.BrowserSession;
 import com.cherrycore.support.CapturingEmailSender;
 import com.cherrycore.support.CustomerFixtures;
@@ -39,6 +43,15 @@ class AccountDataExportIntegrationTest {
 
     @Autowired
     private JdbcClient jdbc;
+
+    @Autowired
+    private AccountRepository accounts;
+
+    @Autowired
+    private PasswordHasher hasher;
+
+    @Autowired
+    private StaffUserRepository staffUsers;
 
     @Test
     void customerDownloadsTheirDataWithoutSecrets() throws Exception {
@@ -83,6 +96,39 @@ class AccountDataExportIntegrationTest {
         assertThat(JsonBodies.<String>read(export, "$.data.staff.companies[0].roleCode")).isEqualTo("OWNER");
         assertThat(JsonBodies.<Boolean>read(export, "$.data.account.mfaEnabled")).isTrue();
         assertThat(export.getResponse().getContentAsString()).doesNotContain(owner.totpSecret());
+    }
+
+    /*
+     * Las acciones de otra persona sobre mi cuenta (un superadmin, el dueño de
+     * la empresa) quedan en mi auditoría con SU IP y SU navegador: no deben
+     * salir en mi descarga.
+     */
+    @Test
+    void exportDoesNotRevealTheIpOfWhoActedOnMyAccount() throws Exception {
+        String email = CustomerFixtures.registerVerified(new BrowserSession(mockMvc), mailbox);
+        BrowserSession customer = new BrowserSession(mockMvc);
+        customer.login(email, CustomerFixtures.PASSWORD);
+        String customerId = StaffFixtures.accountIdOf(customer).toString();
+
+        BrowserSession admin = new BrowserSession(mockMvc);
+        StaffFixtures.firstLoginWithMfaSetup(admin,
+                StaffFixtures.createSuperAdmin(accounts, hasher, staffUsers));
+        admin.call(HttpMethod.POST, "/api/admin/accounts/" + customerId + "/unlock", null);
+        admin.call(HttpMethod.POST, "/api/admin/accounts/" + customerId + "/password-reset", null);
+
+        MvcResult export = customer.get(EXPORT);
+
+        assertThat(JsonBodies.<List<Object>>read(export,
+                "$.data.securityEvents[?(@.type == 'ACCOUNT_UNLOCKED_BY_ADMIN')].ip")).containsOnlyNulls()
+                .hasSize(1);
+        assertThat(JsonBodies.<List<Object>>read(export,
+                "$.data.securityEvents[?(@.type == 'PASSWORD_RESET_REQUESTED')].ip")).containsOnlyNulls()
+                .hasSize(1);
+        assertThat(JsonBodies.<List<Object>>read(export,
+                "$.data.securityEvents[?(@.type == 'ACCOUNT_UNLOCKED_BY_ADMIN')].userAgent")).containsOnlyNulls();
+        // Mis propios eventos sí llevan mi IP.
+        assertThat(JsonBodies.<List<Object>>read(export,
+                "$.data.securityEvents[?(@.type == 'LOGIN_COMPLETED')].ip")).doesNotContainNull();
     }
 
     @Test

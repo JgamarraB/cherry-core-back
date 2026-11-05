@@ -111,6 +111,8 @@ public class PasswordResetService {
         tokenRepository.save(token);
         account.resetPassword(passwordHasher.hash(newPassword), now);
         accountRepository.save(account);
+        // Un cambio de email pedido por quien tenía la sesión no debe poder completarse después.
+        tokenIssuer.revokePending(account.id(), OneTimeTokenPurpose.PASSWORD_RESET, OneTimeTokenPurpose.EMAIL_CHANGE);
         sessionRevoker.revokeAll(account.id());
         notifier.passwordChanged(account);
         eventLogger.log(AuthEventType.PASSWORD_RESET_COMPLETED, account.id(), context);

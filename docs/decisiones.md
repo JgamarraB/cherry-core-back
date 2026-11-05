@@ -43,6 +43,11 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - Límite de peticiones por IP (las IPv6 se agrupan por bloque /64) en `/api/auth` y `/api/account`.
 - Una cuenta **sin verificar** pudo crearla cualquiera con un email ajeno: si después se vincula por login social, su contraseña se elimina.
 
+- Al cambiar o restablecer la contraseña se anulan los enlaces pendientes de "olvidé mi contraseña" y de cambio de email; al confirmar un email nuevo se anulan los enlaces enviados al anterior. — 2026-11-06
+- El segundo paso del login (código MFA) vuelve a leer la cuenta: si se ha desactivado o ha perdido el rol de superadmin desde que puso la contraseña, no entra. — 2026-11-06
+- Google solo cuenta como email verificado si es Gmail o de Google Workspace (claim `hd`); con otro email no se vincula ni se crea cuenta (las identidades ya vinculadas siguen funcionando). — 2026-11-06
+- El último superadmin activo no puede borrar su cuenta. — 2026-11-06
+
 ## D4 · CherryCore es nuestro Identity Provider — 2026-11-05
 
 - Se construye con **Spring Authorization Server** (OAuth2 / OpenID Connect).
@@ -83,6 +88,10 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - Backoffice en varias empresas: elige con cuál entrar. El token de la app lleva `tenant_id`, `tenant_role` y `permissions` (solo los de esa app), y se revalida en cada refresh.
 
 - Límite por IP también en lecturas sensibles: marca de app del login (`/api/auth/apps/*`, todo el prefijo cuenta junto) y exportación de datos.
+
+- Quien no es OWNER solo puede dar permisos que tiene: al asignar un rol, invitar con un rol o añadir permisos a un rol (`ROLE_ABOVE_OWN_PERMISSIONS`). Quitar permisos sí puede. — 2026-11-06
+- Las comprobaciones de "siempre queda un OWNER activo" bloquean la fila de la empresa: dos operaciones simultáneas no pueden dejarla sin dueño. — 2026-11-06
+- Ningún cliente OAuth puede enlazarse a la app reservada `cherrycore`. — 2026-11-06
 
 ## D8 · Datos y auditoría — 2026-11-05
 
@@ -139,3 +148,4 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - Webhooks a las apps (cuenta borrada, empresa suspendida...).
 - Passkeys (WebAuthn) como alternativa al TOTP.
 - **Derecho de acceso**: cada persona descarga sus datos en JSON desde Mi cuenta (`GET /api/account/export`). — 2026-11-06
+- En la descarga de datos, los eventos que hizo otra persona sobre mi cuenta (superadmin, dueño) salen sin IP ni navegador. — 2026-11-06

@@ -21,6 +21,9 @@ interface CompanyJpaRepository extends JpaRepository<CompanyJpaEntity, UUID>,
     boolean existsByCountryCodeAndTaxIdAndIdNot(String countryCode, String taxId, UUID id);
 
     long countByStatus(CompanyStatus status);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<CompanyJpaEntity> findWithLockById(UUID id);
 }
 
 interface CompanyRoleJpaRepository extends JpaRepository<CompanyRoleJpaEntity, UUID> {

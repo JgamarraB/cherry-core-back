@@ -86,6 +86,7 @@ public class CompanyMembersService {
         if ((currentRole.isOwner() || newRole.isOwner()) && !context.isOwner()) {
             throw new DomainException(CompanyErrorCode.OWNER_ROLE_RESERVED);
         }
+        access.requireCanGrant(context, newRole.permissionIds());
         if (currentRole.isOwner() && !newRole.isOwner()) {
             ensureAnotherActiveOwner(currentRole, membership);
         }
@@ -215,6 +216,7 @@ public class CompanyMembersService {
     }
 
     private long remainingActiveOwners(CompanyRole ownerRole, Membership leaving) {
+        companies.lockForUpdate(ownerRole.companyId());
         long activeOwners = memberships.countActiveByRole(ownerRole.id());
         return leaving.isActive() ? activeOwners - 1 : activeOwners;
     }

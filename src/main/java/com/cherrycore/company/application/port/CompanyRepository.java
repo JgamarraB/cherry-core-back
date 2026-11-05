@@ -23,6 +23,13 @@ public interface CompanyRepository {
     void save(Company company);
 
     /**
+     * Bloquea la fila de la empresa hasta el final de la transacción. Serializa
+     * las operaciones que deben dejar al menos un OWNER activo: dos peticiones
+     * simultáneas no pueden quitar a la vez a los dos últimos.
+     */
+    void lockForUpdate(UUID companyId);
+
+    /**
      * @param status {@code null} = todas
      * @param search texto en razón social, nombre comercial o CIF; {@code null} = sin filtro
      */

@@ -51,6 +51,9 @@ class StaffAccountDeletionListener {
                     .map(Company::status)
                     .filter(status -> status != CompanyStatus.REJECTED)
                     .isPresent();
+            if (role.isOwner()) {
+                companies.lockForUpdate(membership.companyId());
+            }
             if (role.isOwner() && companyAlive && memberships.countActiveByRole(role.id()) <= 1) {
                 throw new DomainException(CompanyErrorCode.SOLE_OWNER_CANNOT_LEAVE);
             }

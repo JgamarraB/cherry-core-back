@@ -11,6 +11,7 @@ import com.cherrycore.identity.application.IdentityDataExport.SecurityEventData;
 import com.cherrycore.identity.application.port.AuthEventRecorder;
 import com.cherrycore.identity.application.port.FederatedIdentityRepository;
 import com.cherrycore.identity.domain.Account;
+import com.cherrycore.identity.domain.AuditDetail;
 import com.cherrycore.identity.domain.AuthEventType;
 
 /**
@@ -45,9 +46,16 @@ public class IdentityDataExportService {
                 account.emailVerifiedAt(), account.status().name(), account.locale().toLanguageTag(),
                 account.hasPassword(), mfa.status(accountId).enabled(), account.isSuperAdmin(),
                 account.lastLoginAt());
+        /*
+         * Si el evento lo provocó otra persona (un superadmin, el dueño de una
+         * empresa...), la IP y el navegador son los suyos: no se entregan.
+         */
         var securityEvents = events.findRecentByAccount(accountId, MAX_SECURITY_EVENTS).stream()
-                .map(event -> new SecurityEventData(event.type().name(), event.occurredAt(), event.ip(),
-                        event.userAgent()))
+                .map(event -> {
+                    boolean byAnotherPerson = event.details().containsKey(AuditDetail.ACTOR_ACCOUNT_ID);
+                    return new SecurityEventData(event.type().name(), event.occurredAt(),
+                            byAnotherPerson ? null : event.ip(), byAnotherPerson ? null : event.userAgent());
+                })
                 .toList();
         var linked = federatedIdentities.findByAccount(accountId).stream()
                 .map(identity -> new LinkedIdentityData(identity.provider().name(), identity.emailAtLink()))

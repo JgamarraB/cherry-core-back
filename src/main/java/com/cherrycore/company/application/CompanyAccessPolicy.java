@@ -1,6 +1,7 @@
 package com.cherrycore.company.application;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -77,6 +78,18 @@ public class CompanyAccessPolicy {
             throw new DomainException(CompanyErrorCode.COMPANY_PERMISSION_DENIED);
         }
         return context;
+    }
+
+    /**
+     * Quien no es OWNER solo puede dar permisos que él mismo tiene (al asignar
+     * un rol, invitar con un rol o editar los permisos de un rol). Si no,
+     * con "gestionar miembros" o "gestionar roles" podría ascenderse a sí
+     * mismo o a otra cuenta suya (p. ej. a ADMIN, o con permisos de otras apps).
+     */
+    public void requireCanGrant(CompanyContext context, Collection<UUID> permissionIds) {
+        if (!context.isOwner() && !context.role().permissionIds().containsAll(permissionIds)) {
+            throw new DomainException(CompanyErrorCode.ROLE_ABOVE_OWN_PERMISSIONS);
+        }
     }
 
     private UUID permissionId(CompanyPermission permission) {

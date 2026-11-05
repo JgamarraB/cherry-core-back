@@ -17,6 +17,7 @@ import org.springframework.security.oauth2.server.authorization.settings.TokenSe
 import org.springframework.stereotype.Component;
 
 import com.cherrycore.auth.infrastructure.ClientSettingNames;
+import com.cherrycore.company.domain.CompanyPermission;
 import com.cherrycore.shared.domain.error.DomainException;
 import com.cherrycore.shared.infrastructure.config.CherryCoreProperties;
 import com.cherrycore.shared.infrastructure.config.CherryCoreProperties.ClientAudience;
@@ -60,6 +61,15 @@ public class RegisteredClientFactory {
         definition.postLogoutRedirectUris().forEach(RegisteredClientFactory::validateUri);
         if (!ALLOWED_USER_SCOPES.containsAll(definition.scopes())) {
             throw new DomainException(ClientErrorCode.INVALID_SCOPE);
+        }
+        /*
+         * La app "cherrycore" es la propia gestión de empresas: un cliente
+         * enlazado a ella recibiría esos permisos en sus tokens y, con acceso
+         * de máquina, podría retirarlos del catálogo (y romper la gestión de
+         * todas las empresas).
+         */
+        if (CompanyPermission.APPLICATION_CODE.equals(definition.applicationCode())) {
+            throw new DomainException(ClientErrorCode.RESERVED_APPLICATION);
         }
         boolean needsApplication = definition.audience() == ClientAudience.STAFF || definition.machineAccess();
         if (needsApplication && (definition.applicationCode() == null || definition.applicationCode().isBlank())) {

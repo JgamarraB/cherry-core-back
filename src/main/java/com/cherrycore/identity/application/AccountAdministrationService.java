@@ -84,7 +84,8 @@ public class AccountAdministrationService {
 
     @Transactional
     public void sendPasswordReset(UUID adminId, UUID accountId, RequestContext context) {
-        passwordReset.requestFor(find(accountId).id(), context);
+        // Sin la IP del superadmin: el evento queda en la cuenta afectada (y en su descarga de datos).
+        passwordReset.requestFor(find(accountId).id(), RequestContext.NONE);
         eventLogger.log(AuthEventType.PASSWORD_RESET_SENT_BY_ADMIN, accountId, context, actor(adminId));
     }
 

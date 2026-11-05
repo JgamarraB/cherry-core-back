@@ -25,6 +25,7 @@ public enum CompanyErrorCode implements ErrorCode {
     OWNER_PERMISSIONS_FIXED(ErrorCategory.BUSINESS_RULE, "Owner role always has every permission"),
     ROLE_IN_USE(ErrorCategory.BUSINESS_RULE, "Role is assigned to members"),
     OWNER_ROLE_RESERVED(ErrorCategory.FORBIDDEN, "Only an owner can grant or remove the owner role"),
+    ROLE_ABOVE_OWN_PERMISSIONS(ErrorCategory.FORBIDDEN, "You cannot grant permissions that you do not have"),
     LAST_OWNER(ErrorCategory.BUSINESS_RULE, "The company must keep at least one active owner"),
     SOLE_OWNER_CANNOT_LEAVE(ErrorCategory.BUSINESS_RULE,
             "You are the only owner of a company: transfer ownership first"),
