@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -111,6 +112,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiErrorResponse> handleAccessDenied() {
         return respond(CommonErrorCode.ACCESS_DENIED, List.of());
+    }
+
+    /*
+     * Dos peticiones han modificado el mismo registro a la vez (columna version).
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ApiErrorResponse> handleConcurrentModification() {
+        return respond(CommonErrorCode.CONCURRENT_MODIFICATION, List.of());
     }
 
     @ExceptionHandler(Exception.class)

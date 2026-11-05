@@ -1,0 +1,46 @@
+# ===============================================================
+# Perfil "local": desarrollo en tu máquina con docker/docker-compose.yml
+# (Postgres en 5433 y Mailpit en 1025/8025). NUNCA usar en producción.
+# ===============================================================
+spring:
+  datasource:
+    username: ${DB_USERNAME:cherrycore}
+    password: ${DB_PASSWORD:cherrycore_dev}
+  mail:
+    host: localhost
+    port: ${MAIL_SMTP_PORT:1025}
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
+      mail.smtp.starttls.required: false
+
+
+cherrycore:
+  issuer: http://localhost:8080
+  frontend:
+    login-url: http://localhost:4200/login
+    email-verification-url: http://localhost:4200/verify-email
+    password-reset-url: http://localhost:4200/reset-password
+  mail:
+    from: no-reply@cherrycore.local
+  security:
+    session:
+      # En local no hay HTTPS.
+      secure-cookie: false
+    signing-key:
+      # Clave en memoria: al reiniciar la app los tokens emitidos dejan de valer.
+      generate-ephemeral: true
+  cors:
+    # 4200 = frontend de login (Angular), 4321 = web Astro.
+    allowed-origins: http://localhost:4200,http://localhost:4321
+  oauth:
+    clients:
+      # Backend de Lirgar Mobility actuando como BFF de su web.
+      - client-id: lirgar-web
+        client-name: Lirgar Mobility Web
+        type: CONFIDENTIAL
+        client-secret: ${LIRGAR_WEB_CLIENT_SECRET:lirgar-web-dev-secret}
+        audience: CUSTOMER
+        redirect-uris: http://localhost:8081/login/oauth2/code/cherrycore
+        post-logout-redirect-uris: http://localhost:4321/
+        scopes: openid,profile,email

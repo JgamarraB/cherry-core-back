@@ -1,0 +1,42 @@
+# Perfil "test": lo activan los tests de integración (Postgres por Testcontainers).
+spring:
+  mail:
+    host: localhost
+    port: 2525
+
+
+cherrycore:
+  issuer: http://localhost
+  frontend:
+    login-url: http://localhost:4200/login
+    email-verification-url: http://localhost:4200/verify-email
+    password-reset-url: http://localhost:4200/reset-password
+  mail:
+    from: no-reply@cherrycore.test
+  security:
+    session:
+      secure-cookie: false
+    signing-key:
+      generate-ephemeral: true
+    rate-limit:
+      # Desactivado por defecto; el test de rate limit lo activa.
+      enabled: false
+  cors:
+    allowed-origins: http://localhost:4200
+  oauth:
+    clients:
+      - client-id: test-bff
+        client-name: Test BFF
+        type: CONFIDENTIAL
+        client-secret: test-bff-secret
+        audience: CUSTOMER
+        redirect-uris: http://localhost:8081/login/oauth2/code/cherrycore
+        post-logout-redirect-uris: http://localhost:4321/
+        scopes: openid,profile,email
+      - client-id: test-staff-app
+        client-name: Test Staff App
+        type: CONFIDENTIAL
+        client-secret: test-staff-secret
+        audience: STAFF
+        redirect-uris: http://localhost:8082/login/oauth2/code/cherrycore
+        scopes: openid

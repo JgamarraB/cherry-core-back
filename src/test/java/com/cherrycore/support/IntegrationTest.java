@@ -8,14 +8,17 @@ import java.lang.annotation.Target;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 
 /**
- * Test de integración: aplicación completa + Postgres en Docker + MockMvc.
+ * Test de integración: aplicación completa (perfil "test") + Postgres en
+ * Docker + MockMvc + buzón de email falso.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(PostgresTestcontainersConfig.class)
+@ActiveProfiles("test")
+@Import({PostgresTestcontainersConfig.class, TestEmailConfig.class})
 public @interface IntegrationTest {
 }

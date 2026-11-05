@@ -8,6 +8,8 @@ public enum CommonErrorCode implements ErrorCode {
     VALIDATION_ERROR(ErrorCategory.INVALID_INPUT, "Request validation failed"),
     AUTHENTICATION_REQUIRED(ErrorCategory.UNAUTHENTICATED, "Authentication is required"),
     ACCESS_DENIED(ErrorCategory.FORBIDDEN, "Access denied"),
+    CSRF_TOKEN_INVALID(ErrorCategory.FORBIDDEN, "CSRF token is missing or invalid"),
+    CONCURRENT_MODIFICATION(ErrorCategory.CONFLICT, "The resource was modified by another request, reload and retry"),
     TOO_MANY_REQUESTS(ErrorCategory.TOO_MANY_REQUESTS, "Too many requests, try again later"),
     INTERNAL_ERROR(ErrorCategory.INTERNAL, "Unexpected internal error");
 

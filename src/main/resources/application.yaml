@@ -1,3 +1,9 @@
+# ===============================================================
+# Configuración común a todos los entornos.
+# Aquí NO hay valores inseguros: lo que depende del entorno se pasa por
+# variables de entorno o por un perfil (local, test, prod).
+# Para desarrollar: perfil "local" (ver docs/arranque.md).
+# ===============================================================
 spring:
   application:
     name: cherry-core-app
@@ -8,16 +14,15 @@ spring:
 
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:cherry_core}
-    username: ${DB_USERNAME:cherrycore}
-    password: ${DB_PASSWORD:cherrycore_dev}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: validate
     open-in-view: false
     properties:
       hibernate:
-        format_sql: true
         jdbc:
           time_zone: UTC
 
@@ -31,7 +36,44 @@ spring:
       # Rechaza campos desconocidos en el JSON (protección contra mass assignment).
       fail-on-unknown-properties: true
 
+  session:
+    jdbc:
+      # El esquema lo crea Flyway (V4), no Spring.
+      initialize-schema: never
+      cleanup-cron: "0 */5 * * * *"
+
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${MAIL_SMTP_AUTH:true}
+      mail.smtp.starttls.enable: ${MAIL_STARTTLS:true}
+      mail.smtp.starttls.required: ${MAIL_STARTTLS:true}
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
+  messages:
+    # Textos de los emails (i18n/emails_es.properties, i18n/emails_en.properties).
+    basename: i18n/emails
+    fallback-to-system-locale: false
+    encoding: UTF-8
+
+  web:
+    # Idioma cuando la petición no trae Accept-Language.
+    locale: es
+    locale-resolver: accept-header
+
+  threads:
+    virtual:
+      # Hilos virtuales de Java 21 (envío de emails asíncrono, peticiones).
+      enabled: true
+
 server:
+  # Confía en X-Forwarded-For solo si viene de un proxy de red interna (IP real del cliente).
+  forward-headers-strategy: native
   error:
     # Nunca exponer detalles internos en errores no controlados.
     include-message: never
@@ -47,18 +89,73 @@ management:
   endpoint:
     health:
       show-details: never
+  health:
+    # Que un fallo del servidor de correo no marque la app como caída.
+    mail:
+      enabled: false
 
 # ---------------------------------------------------------------
 # Configuración propia de CherryCore (CherryCoreProperties).
 # Todo lo ajustable se cambia aquí.
 # ---------------------------------------------------------------
 cherrycore:
+  # URL pública de CherryCore. Va dentro de cada token ("iss").
+  issuer: ${CHERRYCORE_ISSUER}
+
+  frontend:
+    login-url: ${CHERRYCORE_FRONTEND_URL}/login
+    email-verification-url: ${CHERRYCORE_FRONTEND_URL}/verify-email
+    password-reset-url: ${CHERRYCORE_FRONTEND_URL}/reset-password
+
+  legal:
+    terms-version: "2026-11-05"
+
+  customers:
+    max-addresses: 10
+
+  i18n:
+    default-locale: es
+    supported-locales: es,en
+
+  mail:
+    from: ${MAIL_FROM}
+
   security:
     tokens:
       access-token-ttl: 15m
       customer-refresh-token-ttl: 30d
       staff-refresh-token-ttl: 12h
+      authorization-code-ttl: 2m
+    signing-key:
+      key-id: ${JWT_KEY_ID:cherrycore-1}
+      private-key-location: ${JWT_PRIVATE_KEY_LOCATION:}
+      public-key-location: ${JWT_PUBLIC_KEY_LOCATION:}
+      generate-ephemeral: false
+    password:
+      min-length: 10
+      max-length: 128
+    login-protection:
+      max-failed-attempts: 5
+      lock-duration: 15m
+    one-time-tokens:
+      email-verification-ttl: 24h
+      password-reset-ttl: 30m
+    session:
+      cookie-name: CHERRYCORE_SESSION
+      secure-cookie: true
+      same-site: Lax
+      timeout: 30m
+    rate-limit:
+      enabled: true
+      # Peticiones permitidas por IP y endpoint en cada periodo.
+      capacity: 10
+      refill-period: 1m
+
   cors:
     # Frontends que pueden llamar a la API. Separados por comas en la variable de entorno.
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:4321}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
     max-age: 1h
+
+  oauth:
+    # Aplicaciones que pueden pedir tokens. Se definen por entorno.
+    clients: []

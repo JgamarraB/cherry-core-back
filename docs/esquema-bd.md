@@ -1,6 +1,6 @@
 # Esquema de base de datos de CherryCore
 
-Estado: **propuesta** (2026-11-05). Cuando una tabla se crea con Flyway, se marca con ✅ y su migración.
+Estado (2026-11-05): ✅ = creada con Flyway (se indica la migración). Sin marca = propuesta para fases siguientes.
 
 ## Reglas comunes (todas las tablas)
 
@@ -33,18 +33,19 @@ companies ─ 1:N ─ staff_invitations
 
 ## Cuentas y seguridad
 
-### `accounts`
+### `accounts` ✅ V1
 | Columna | Tipo | Nota |
 |---|---|---|
 | `type` | `VARCHAR` | `CUSTOMER` / `STAFF` |
 | `email` | `VARCHAR(254)` | Único por `type` |
 | `email_verified_at` | `TIMESTAMPTZ` | NULL = sin verificar → no puede entrar |
 | `password_hash` | `VARCHAR` | Argon2id. NULL si solo usa login social |
-| `status` | `VARCHAR` | `PENDING_VERIFICATION` / `ACTIVE` / `LOCKED` / `DISABLED` |
+| `status` | `VARCHAR` | `PENDING_VERIFICATION` / `ACTIVE` / `DISABLED` (el bloqueo es temporal: `locked_until`) |
 | `failed_login_attempts` | `INT` | Para el bloqueo por fuerza bruta |
 | `locked_until` | `TIMESTAMPTZ` | Bloqueo temporal |
 | `last_login_at` | `TIMESTAMPTZ` | |
 | `platform_role` | `VARCHAR` | Solo `SUPER_ADMIN` o NULL. Solo en cuentas `STAFF` |
+| `locale` | `VARCHAR` | Idioma de la cuenta (`es`, `en`): idioma de los emails |
 
 ### `mfa_factors`
 `account_id`, `type` (`TOTP` / `WEBAUTHN`), `secret` (**cifrado**), `confirmed_at`, `last_used_at`.
@@ -55,18 +56,18 @@ companies ─ 1:N ─ staff_invitations
 ### `federated_identities`
 `account_id`, `provider` (`GOOGLE` / `APPLE`), `provider_subject` (id del usuario en Google/Apple). Único: `provider + provider_subject`.
 
-### `one_time_tokens`
-`account_id`, `purpose` (`EMAIL_VERIFICATION` / `PASSWORD_RESET` / `EMAIL_CHANGE`), `token_hash` (**nunca el token en claro**), `expires_at`, `used_at`.
+### `one_time_tokens` ✅ V2
+`account_id`, `purpose` (`EMAIL_VERIFICATION` / `PASSWORD_RESET`), `token_hash` (**nunca el token en claro**), `expires_at`, `used_at`.
 
-### `auth_events`
+### `auth_events` ✅ V2
 `account_id` (puede ser NULL si el email no existe), `type` (`LOGIN_OK`, `LOGIN_FAILED`, `PASSWORD_RESET`, `MFA_FAILED`…), `ip`, `user_agent`, `occurred_at`. Solo inserción.
 
 ## Clientes
 
-### `customers` (id = `accounts.id`)
+### `customers` ✅ V1 (id = `accounts.id`)
 `first_name`, `last_name`, `phone` (opcional, formato E.164), `terms_accepted_at`, `terms_version`.
 
-### `customer_addresses`
+### `customer_addresses` ✅ V1
 `customer_id`, `line1`, `line2`, `city`, `postal_code`, `region`, `country_code` (ISO 3166-1), `is_default`. Opcional; permite varias direcciones en el futuro.
 
 ## Empresas y backoffice
@@ -89,7 +90,7 @@ companies ─ 1:N ─ staff_invitations
 `company_id`, `code`, `name`, `is_system` (`true` en `OWNER` / `ADMIN` / `STAFF` → no se pueden borrar ni renombrar). Único: `company_id + code`.
 
 ### `company_role_permissions`
-`role_id`, `permission` (código del permiso). ⚠️ Pendiente: de dónde sale el catálogo de permisos.
+`role_id`, `permission` (código del permiso). El catálogo lo registra cada app en CherryCore (fase 3).
 
 ### `memberships`
 `staff_user_id`, `company_id`, `role_id`, `status` (`ACTIVE` / `SUSPENDED`). Único: `staff_user_id + company_id`.
@@ -97,6 +98,9 @@ companies ─ 1:N ─ staff_invitations
 ### `staff_invitations`
 `company_id`, `email`, `role_id`, `token_hash`, `expires_at`, `accepted_at`, `invited_by`.
 
-## Tablas de Spring Authorization Server
+## Tablas de framework ✅ V3, V4
 
-`oauth2_registered_client`, `oauth2_authorization`, `oauth2_authorization_consent`. Esquema estándar de Spring; se adapta a Postgres y se crea con Flyway.
+No siguen nuestras reglas de auditoría y borrado lógico (son de Spring y no se tocan a mano).
+
+- **V3, Spring Authorization Server**: `oauth2_registered_client` (apps cliente), `oauth2_authorization` (códigos y tokens emitidos), `oauth2_authorization_consent`.
+- **V4, Spring Session**: `spring_session`, `spring_session_attributes` (sesiones de login).
