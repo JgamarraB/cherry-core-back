@@ -42,7 +42,7 @@ public class CapturingEmailSender implements EmailSender {
     }
 
     public String awaitToken(String to, String subject) {
-        Matcher matcher = TOKEN_IN_LINK.matcher(awaitEmail(to, subject).body());
+        Matcher matcher = TOKEN_IN_LINK.matcher(awaitEmail(to, subject).textBody());
         if (!matcher.find()) {
             throw new AssertionError("No token link in email: " + subject);
         }

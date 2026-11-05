@@ -1,8 +1,8 @@
 package com.cherrycore.identity.infrastructure.notification;
 
 /**
- * Tipos de email del módulo de identidad. {@code key} es el prefijo de sus
- * textos en i18n/emails*.properties.
+ * Emails del módulo de identidad. {@code key} es el prefijo de sus textos en
+ * i18n/emails*.properties.
  */
 enum IdentityEmailType {
 
@@ -12,20 +12,13 @@ enum IdentityEmailType {
     ACCOUNT_LOCKED("email.account-locked"),
     PASSWORD_CHANGED("email.password-changed");
 
-    private static final String SUBJECT_SUFFIX = ".subject";
-    private static final String BODY_SUFFIX = ".body";
-
     private final String key;
 
     IdentityEmailType(String key) {
         this.key = key;
     }
 
-    String subjectKey() {
-        return key + SUBJECT_SUFFIX;
-    }
-
-    String bodyKey() {
-        return key + BODY_SUFFIX;
+    String key() {
+        return key;
     }
 }

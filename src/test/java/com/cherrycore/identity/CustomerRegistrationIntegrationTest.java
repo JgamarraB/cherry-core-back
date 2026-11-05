@@ -127,6 +127,6 @@ class CustomerRegistrationIntegrationTest {
         BrowserSession english = new BrowserSession(mockMvc).withHeader("Accept-Language", "en-GB,en;q=0.9");
         english.postJson(AuthPaths.CUSTOMER_REGISTER, registerBody(email, PASSWORD));
 
-        assertThat(mailbox.awaitEmail(email, "Confirm your email").body()).contains("Thanks for signing up");
+        assertThat(mailbox.awaitEmail(email, "Confirm your email").textBody()).contains("Thanks for signing up");
     }
 }

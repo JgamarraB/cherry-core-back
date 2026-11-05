@@ -159,3 +159,15 @@ cherrycore:
   oauth:
     # Aplicaciones que pueden pedir tokens. Se definen por entorno.
     clients: []
+
+  branding:
+    # Nombre en los emails de cuenta (los de una empresa llevan su logo o su nombre).
+    platform-name: CherryCore
+
+  storage:
+    endpoint: ${STORAGE_ENDPOINT}
+    access-key: ${STORAGE_ACCESS_KEY}
+    secret-key: ${STORAGE_SECRET_KEY}
+    bucket: ${STORAGE_BUCKET:cherrycore-media}
+    public-base-url: ${STORAGE_PUBLIC_URL}
+    max-image-size: 2MB

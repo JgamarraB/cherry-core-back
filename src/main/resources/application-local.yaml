@@ -30,6 +30,12 @@ cherrycore:
     signing-key:
       # Clave en memoria: al reiniciar la app los tokens emitidos dejan de valer.
       generate-ephemeral: true
+  storage:
+    # RustFS de docker/docker-compose.yml (compatible S3). Consola: http://localhost:9001
+    endpoint: http://localhost:${STORAGE_API_PORT:9000}
+    access-key: ${STORAGE_ACCESS_KEY:cherrycore}
+    secret-key: ${STORAGE_SECRET_KEY:cherrycore_dev}
+    public-base-url: http://localhost:${STORAGE_API_PORT:9000}
   cors:
     # 4200 = frontend de login (Angular), 4321 = web Astro.
     allowed-origins: http://localhost:4200,http://localhost:4321

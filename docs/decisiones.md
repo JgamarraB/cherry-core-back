@@ -92,10 +92,9 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - Se envían **en segundo plano** y solo si la operación se ha guardado.
 - **Idiomas**: español (por defecto) e inglés. Cada cuenta guarda su idioma. Añadir uno = añadir `i18n/emails_xx.properties`.
 - **Desarrollo**: Mailpit (servidor de correo local en Docker, no envía nada real).
-- **Producción**: recomendado Brevo (UE, 300/día gratis). Pendiente de confirmar.
+- **Producción**: **Brevo** por SMTP (empresa de la UE, 300 emails/día gratis). Solo cambian las variables `MAIL_*`.
 
 ## Pendiente de decidir
 
 - Tecnología del frontend de login.
-- Proveedor de email de producción.
 - Contenido del JWT para backoffice (empresa activa y permisos) — fase 3.

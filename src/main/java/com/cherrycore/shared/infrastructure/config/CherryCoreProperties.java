@@ -8,6 +8,7 @@ import java.util.Set;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.core.io.Resource;
+import org.springframework.util.unit.DataSize;
 import org.springframework.validation.annotation.Validated;
 
 import jakarta.validation.Valid;
@@ -38,7 +39,9 @@ public record CherryCoreProperties(
         @NotNull @Valid Mail mail,
         @NotNull @Valid Security security,
         @NotNull @Valid Cors cors,
-        @NotNull @Valid OAuth oauth
+        @NotNull @Valid OAuth oauth,
+        @NotNull @Valid Branding branding,
+        @NotNull @Valid Storage storage
 ) {
 
     public static final String PREFIX = "cherrycore";
@@ -189,6 +192,29 @@ public record CherryCoreProperties(
         public boolean isWildcardFree() {
             return allowedOrigins == null || !allowedOrigins.contains("*");
         }
+    }
+
+    /**
+     * Marca de la plataforma en los emails que no pertenecen a una empresa.
+     */
+    public record Branding(@NotBlank String platformName) {
+    }
+
+    /**
+     * Almacenamiento de ficheros (servidor compatible con S3). Cada empresa tiene
+     * su carpeta: {@code companies/{companyId}/...}.
+     *
+     * @param publicBaseUrl URL pública desde la que se sirven los ficheros
+     *                      públicos (logos). Normalmente el dominio de media.
+     */
+    public record Storage(
+            @NotNull URI endpoint,
+            @NotBlank String accessKey,
+            @NotBlank String secretKey,
+            @NotBlank String bucket,
+            @NotNull URI publicBaseUrl,
+            @NotNull DataSize maxImageSize
+    ) {
     }
 
     public record OAuth(@NotNull List<@Valid Client> clients) {

@@ -21,6 +21,12 @@ cherrycore:
     rate-limit:
       # Desactivado por defecto; el test de rate limit lo activa.
       enabled: false
+  storage:
+    # Los tests de integración sobrescriben endpoint y credenciales con su MinIO (Testcontainers).
+    endpoint: http://localhost:9000
+    access-key: test
+    secret-key: test-secret
+    public-base-url: http://localhost:9000
   cors:
     allowed-origins: http://localhost:4200
   oauth:

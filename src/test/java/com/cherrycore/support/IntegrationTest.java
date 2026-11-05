@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * Test de integración: aplicación completa (perfil "test") + Postgres en
+ * Test de integración: aplicación completa (perfil "test") + Postgres y S3 en
  * Docker + MockMvc + buzón de email falso.
  */
 @Target(ElementType.TYPE)
@@ -19,6 +19,6 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import({PostgresTestcontainersConfig.class, TestEmailConfig.class})
+@Import({PostgresTestcontainersConfig.class, StorageTestcontainersConfig.class, TestEmailConfig.class})
 public @interface IntegrationTest {
 }

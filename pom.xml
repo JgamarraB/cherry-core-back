@@ -31,6 +31,7 @@
 		<archunit.version>1.4.1</archunit.version>
 		<bouncycastle.version>1.82</bouncycastle.version>
 		<bucket4j.version>8.14.0</bucket4j.version>
+		<minio.version>8.5.17</minio.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -70,6 +71,17 @@
 			<groupId>org.bouncycastle</groupId>
 			<artifactId>bcprov-jdk18on</artifactId>
 			<version>${bouncycastle.version}</version>
+		</dependency>
+		<dependency>
+			<!-- Cliente S3 (vale para RustFS, MinIO, AWS S3...): logos y multimedia -->
+			<groupId>io.minio</groupId>
+			<artifactId>minio</artifactId>
+			<version>${minio.version}</version>
+		</dependency>
+		<dependency>
+			<!-- Plantillas HTML de los emails (no se usa para paginas web) -->
+			<groupId>org.thymeleaf</groupId>
+			<artifactId>thymeleaf</artifactId>
 		</dependency>
 		<dependency>
 			<!-- Cache en memoria con caducidad (buckets del rate limiting) -->
