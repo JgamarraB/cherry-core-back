@@ -1,0 +1,16 @@
+# ===============================================================
+# Perfil "prod". Los valores sensibles SIEMPRE por variables de entorno
+# (ver docs/arranque.md). Aquí solo lo propio de producción.
+# ===============================================================
+cherrycore:
+  oauth:
+    clients: []
+    # Ejemplo (rellenar cuando se despliegue Lirgar):
+    # - client-id: lirgar-web
+    #   client-name: Lirgar Mobility Web
+    #   type: CONFIDENTIAL
+    #   client-secret: ${LIRGAR_WEB_CLIENT_SECRET}
+    #   audience: CUSTOMER
+    #   redirect-uris: https://lirgar.example.com/login/oauth2/code/cherrycore
+    #   post-logout-redirect-uris: https://lirgar.example.com/
+    #   scopes: openid,profile,email

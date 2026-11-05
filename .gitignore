@@ -20,3 +20,6 @@ target/
 
 # Docker
 docker/.env
+# Claves (nunca en git)
+*.pem
+*.p8

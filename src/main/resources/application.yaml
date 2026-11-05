@@ -1,30 +1,203 @@
+# ===============================================================
+# Configuración común a todos los entornos.
+# Aquí NO hay valores inseguros: lo que depende del entorno se pasa por
+# variables de entorno o por un perfil (local, test, prod).
+# Para desarrollar: perfil "local" (ver docs/arranque.md).
+# ===============================================================
 spring:
   application:
     name: cherry-core-app
 
+  autoconfigure:
+    # Sin usuario por defecto con contraseña generada: los usuarios vienen de la base de datos.
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+
   datasource:
-    url: jdbc:mysql://localhost:${DB_PORT:3306}/${DB_NAME:cherry_core}?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=Europe/Madrid
-    username: ${DB_USERNAME:cherrycore}
-    password: ${DB_PASSWORD:cherrycore_dev}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:cherry_core}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: validate
     open-in-view: false
     properties:
       hibernate:
-        format_sql: true
+        jdbc:
+          time_zone: UTC
 
   flyway:
     enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+
+  jackson:
+    deserialization:
+      # Rechaza campos desconocidos en el JSON (protección contra mass assignment).
+      fail-on-unknown-properties: true
+
+  session:
+    jdbc:
+      # El esquema lo crea Flyway (V4), no Spring.
+      initialize-schema: never
+      cleanup-cron: "0 */5 * * * *"
+
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${MAIL_SMTP_AUTH:true}
+      mail.smtp.starttls.enable: ${MAIL_STARTTLS:true}
+      mail.smtp.starttls.required: ${MAIL_STARTTLS:true}
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
+  messages:
+    # Textos de los emails (i18n/emails_es.properties, i18n/emails_en.properties).
+    basename: i18n/emails
+    fallback-to-system-locale: false
+    encoding: UTF-8
+
+  servlet:
+    multipart:
+      # Logos y ficheros pequeños. Límite estricto para evitar abusos.
+      max-file-size: 2MB
+      max-request-size: 3MB
+
+  web:
+    # Idioma cuando la petición no trae Accept-Language.
+    locale: es
+    locale-resolver: accept-header
+
+  threads:
+    virtual:
+      # Hilos virtuales de Java 21 (envío de emails asíncrono, peticiones).
+      enabled: true
+
+server:
+  # Al parar, termina las peticiones en curso (despliegues sin cortes).
+  shutdown: graceful
+  # Confía en X-Forwarded-For solo si viene de un proxy de red interna (IP real del cliente).
+  forward-headers-strategy: native
+  error:
+    # Nunca exponer detalles internos en errores no controlados.
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+    include-exception: false
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
-
+        include: health
   endpoint:
     health:
-      show-details: when-authorized
+      show-details: never
+      # /actuator/health/liveness y /readiness para el orquestador (Docker, Kubernetes...).
+      probes:
+        enabled: true
+  health:
+    # Que un fallo del servidor de correo no marque la app como caída.
+    mail:
+      enabled: false
+
+# ---------------------------------------------------------------
+# Configuración propia de CherryCore (CherryCoreProperties).
+# Todo lo ajustable se cambia aquí.
+# ---------------------------------------------------------------
+cherrycore:
+  # URL pública de CherryCore. Va dentro de cada token ("iss").
+  issuer: ${CHERRYCORE_ISSUER}
+
+  frontend:
+    login-url: ${CHERRYCORE_FRONTEND_URL}/login
+    email-verification-url: ${CHERRYCORE_FRONTEND_URL}/verify-email
+    password-reset-url: ${CHERRYCORE_FRONTEND_URL}/reset-password
+    invitation-url: ${CHERRYCORE_FRONTEND_URL}/invitation
+    email-change-url: ${CHERRYCORE_FRONTEND_URL}/confirm-email-change
+    admin-url: ${CHERRYCORE_FRONTEND_URL}/admin
+    social-signup-url: ${CHERRYCORE_FRONTEND_URL}/register/complete
+
+  legal:
+    terms-version: "2026-11-05"
+
+  customers:
+    max-addresses: 10
+
+  companies:
+    invitation-ttl: 7d
+
+  i18n:
+    default-locale: es
+    supported-locales: es,en
+
+  mail:
+    from: ${MAIL_FROM}
+
+  security:
+    # Clave para cifrar secretos (MFA). Base64 de 32 bytes: openssl rand -base64 32
+    encryption-key: ${CHERRYCORE_ENCRYPTION_KEY}
+    tokens:
+      access-token-ttl: 15m
+      customer-refresh-token-ttl: 30d
+      staff-refresh-token-ttl: 12h
+      authorization-code-ttl: 2m
+    signing-key:
+      key-id: ${JWT_KEY_ID:cherrycore-1}
+      private-key-location: ${JWT_PRIVATE_KEY_LOCATION:}
+      public-key-location: ${JWT_PUBLIC_KEY_LOCATION:}
+      generate-ephemeral: false
+    password:
+      min-length: 10
+      max-length: 128
+    login-protection:
+      max-failed-attempts: 5
+      lock-duration: 15m
+    one-time-tokens:
+      email-verification-ttl: 24h
+      password-reset-ttl: 30m
+    session:
+      cookie-name: CHERRYCORE_SESSION
+      secure-cookie: true
+      same-site: Lax
+      timeout: 30m
+    rate-limit:
+      enabled: true
+      # Peticiones permitidas por IP y endpoint en cada periodo.
+      capacity: 10
+      refill-period: 1m
+
+  cors:
+    # Frontends que pueden llamar a la API. Separados por comas en la variable de entorno.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+    max-age: 1h
+
+  oauth:
+    # Aplicaciones que pueden pedir tokens. Se definen por entorno.
+    clients: []
+
+  retention:
+    # Todos los días a las 3:30 (UTC) se borran datos caducados.
+    cron: "0 30 3 * * *"
+    expired-tokens-keep: 7d
+    auth-events-keep: 365d
+
+  bootstrap:
+    # Primer superadmin: se crea al arrancar si no existe ninguno (recibe un email para poner su contraseña).
+    super-admin-email: ${SUPER_ADMIN_EMAIL:}
+
+  branding:
+    # Nombre en los emails de cuenta (los de una empresa llevan su logo o su nombre).
+    platform-name: CherryCore
+
+  storage:
+    endpoint: ${STORAGE_ENDPOINT}
+    access-key: ${STORAGE_ACCESS_KEY}
+    secret-key: ${STORAGE_SECRET_KEY}
+    bucket: ${STORAGE_BUCKET:cherrycore-media}
+    public-base-url: ${STORAGE_PUBLIC_URL}
+    max-image-size: 2MB

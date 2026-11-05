@@ -1,13 +1,13 @@
 package com.cherrycore;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
+import com.cherrycore.support.IntegrationTest;
+
+@IntegrationTest
 class CherryCoreAppApplicationTests {
 
-	@Test
-	void contextLoads() {
-	}
-
+    @Test
+    void contextLoads() {
+    }
 }

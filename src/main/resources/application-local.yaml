@@ -1,0 +1,58 @@
+# ===============================================================
+# Perfil "local": desarrollo en tu máquina con docker/docker-compose.yml
+# (Postgres en 5433 y Mailpit en 1025/8025). NUNCA usar en producción.
+# ===============================================================
+spring:
+  datasource:
+    username: ${DB_USERNAME:cherrycore}
+    password: ${DB_PASSWORD:cherrycore_dev}
+  mail:
+    host: localhost
+    port: ${MAIL_SMTP_PORT:1025}
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
+      mail.smtp.starttls.required: false
+
+
+cherrycore:
+  issuer: http://localhost:8080
+  frontend:
+    login-url: http://localhost:4200/login
+    email-verification-url: http://localhost:4200/verify-email
+    password-reset-url: http://localhost:4200/reset-password
+    invitation-url: http://localhost:4200/invitation
+    email-change-url: http://localhost:4200/confirm-email-change
+    admin-url: http://localhost:4200/admin
+    social-signup-url: http://localhost:4200/register/complete
+  mail:
+    from: no-reply@cherrycore.local
+  security:
+    # Clave SOLO de desarrollo/tests. Nunca usarla en producción.
+    encryption-key: ZGV2LW9ubHktZW5jcnlwdGlvbi1rZXktMzItYnl0ZXM=
+    session:
+      # En local no hay HTTPS.
+      secure-cookie: false
+    signing-key:
+      # Clave en memoria: al reiniciar la app los tokens emitidos dejan de valer.
+      generate-ephemeral: true
+  storage:
+    # RustFS de docker/docker-compose.yml (compatible S3). Consola: http://localhost:9001
+    endpoint: http://localhost:${STORAGE_API_PORT:9000}
+    access-key: ${STORAGE_ACCESS_KEY:cherrycore}
+    secret-key: ${STORAGE_SECRET_KEY:cherrycore_dev}
+    public-base-url: http://localhost:${STORAGE_API_PORT:9000}
+  cors:
+    # 4200 = frontend de login (Angular), 4321 = web Astro.
+    allowed-origins: http://localhost:4200,http://localhost:4321
+  oauth:
+    clients:
+      # Backend de Lirgar Mobility actuando como BFF de su web.
+      - client-id: lirgar-web
+        client-name: Lirgar Mobility Web
+        type: CONFIDENTIAL
+        client-secret: ${LIRGAR_WEB_CLIENT_SECRET:lirgar-web-dev-secret}
+        audience: CUSTOMER
+        redirect-uris: http://localhost:8081/login/oauth2/code/cherrycore
+        post-logout-redirect-uris: http://localhost:4321/
+        scopes: openid,profile,email
