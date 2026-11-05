@@ -9,12 +9,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.cherrycore.customer.application.port.CustomerAddressRepository;
 import com.cherrycore.customer.application.port.CustomerRepository;
-import com.cherrycore.shared.domain.value.CountryCode;
 import com.cherrycore.customer.domain.CustomerAddress;
 import com.cherrycore.customer.domain.CustomerErrorCode;
 import com.cherrycore.customer.domain.PostalAddress;
 import com.cherrycore.shared.domain.error.DomainException;
 import com.cherrycore.shared.domain.id.UuidV7;
+import com.cherrycore.shared.domain.value.CountryCode;
 
 /**
  * Direcciones del cliente. Siempre se trabaja con el id del cliente

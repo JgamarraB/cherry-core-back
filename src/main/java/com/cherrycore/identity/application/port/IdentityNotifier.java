@@ -1,6 +1,9 @@
 package com.cherrycore.identity.application.port;
 
+import java.util.Locale;
+
 import com.cherrycore.identity.domain.Account;
+import com.cherrycore.identity.domain.EmailAddress;
 
 /**
  * Avisos al usuario (por email). Se envían de forma asíncrona tras confirmar
@@ -17,4 +20,19 @@ public interface IdentityNotifier {
     void accountLocked(Account account);
 
     void passwordChanged(Account account);
+
+    /**
+     * Enlace de confirmación al email NUEVO.
+     */
+    void emailChangeRequested(Account account, EmailAddress newEmail, String rawToken);
+
+    /**
+     * Aviso al email ANTERIOR de que se ha cambiado.
+     */
+    void emailChanged(EmailAddress previousEmail, Locale locale);
+
+    /**
+     * Confirmación de borrado al email que tenía la cuenta.
+     */
+    void accountDeleted(EmailAddress email, Locale locale);
 }

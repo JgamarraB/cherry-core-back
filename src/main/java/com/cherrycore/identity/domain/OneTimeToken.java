@@ -16,15 +16,25 @@ public class OneTimeToken {
     private final String tokenHash;
     private final Instant expiresAt;
     private Instant usedAt;
+    private final String payload;
 
     public OneTimeToken(UUID id, UUID accountId, OneTimeTokenPurpose purpose, String tokenHash,
             Instant expiresAt, Instant usedAt) {
+        this(id, accountId, purpose, tokenHash, expiresAt, usedAt, null);
+    }
+
+    /**
+     * @param payload dato asociado (p. ej. el email nuevo en un cambio de email)
+     */
+    public OneTimeToken(UUID id, UUID accountId, OneTimeTokenPurpose purpose, String tokenHash,
+            Instant expiresAt, Instant usedAt, String payload) {
         this.id = Objects.requireNonNull(id);
         this.accountId = Objects.requireNonNull(accountId);
         this.purpose = Objects.requireNonNull(purpose);
         this.tokenHash = Objects.requireNonNull(tokenHash);
         this.expiresAt = Objects.requireNonNull(expiresAt);
         this.usedAt = usedAt;
+        this.payload = payload;
     }
 
     public boolean isUsableFor(OneTimeTokenPurpose expectedPurpose, Instant now) {
@@ -57,5 +67,9 @@ public class OneTimeToken {
 
     public Instant usedAt() {
         return usedAt;
+    }
+
+    public String payload() {
+        return payload;
     }
 }

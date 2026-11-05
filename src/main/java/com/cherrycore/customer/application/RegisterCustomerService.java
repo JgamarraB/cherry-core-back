@@ -7,12 +7,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.cherrycore.customer.application.port.CustomerRepository;
 import com.cherrycore.customer.domain.Customer;
-import com.cherrycore.shared.domain.value.PersonName;
-import com.cherrycore.shared.domain.value.PhoneNumber;
 import com.cherrycore.identity.application.AccountRegistrationService;
 import com.cherrycore.identity.application.RequestContext;
 import com.cherrycore.shared.domain.error.CommonErrorCode;
 import com.cherrycore.shared.domain.error.DomainException;
+import com.cherrycore.shared.domain.value.PersonName;
+import com.cherrycore.shared.domain.value.PhoneNumber;
 
 /**
  * Alta de cliente final: cuenta + perfil en una única transacción.

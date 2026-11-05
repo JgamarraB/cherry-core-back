@@ -9,4 +9,11 @@ import java.util.UUID;
 public interface AccountSessionRevoker {
 
     void revokeAll(UUID accountId);
+
+    /**
+     * Igual, pero mantiene la sesión desde la que se hace el cambio.
+     *
+     * @param keepSessionId id de la sesión actual (opaco para la aplicación)
+     */
+    void revokeAllExcept(UUID accountId, String keepSessionId);
 }

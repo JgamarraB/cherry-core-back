@@ -31,8 +31,15 @@ class SpringSessionAccountSessionRevoker implements AccountSessionRevoker {
 
     @Override
     public void revokeAll(UUID accountId) {
+        revokeAllExcept(accountId, null);
+    }
+
+    @Override
+    public void revokeAllExcept(UUID accountId, String keepSessionId) {
         String principal = accountId.toString();
-        sessionRepository.findByPrincipalName(principal).keySet().forEach(sessionRepository::deleteById);
+        sessionRepository.findByPrincipalName(principal).keySet().stream()
+                .filter(sessionId -> !sessionId.equals(keepSessionId))
+                .forEach(sessionRepository::deleteById);
         jdbcClient.sql(DELETE_AUTHORIZATIONS_SQL).param("principal", principal).update();
     }
 }

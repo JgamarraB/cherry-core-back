@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cherrycore.identity.application.AccountSecurityService;
 import com.cherrycore.identity.application.EmailVerificationService;
 import com.cherrycore.identity.application.PasswordResetService;
 import com.cherrycore.identity.domain.AccountType;
@@ -36,11 +37,13 @@ public class AuthController {
 
     private final EmailVerificationService emailVerificationService;
     private final PasswordResetService passwordResetService;
+    private final AccountSecurityService accountSecurity;
 
     public AuthController(EmailVerificationService emailVerificationService,
-            PasswordResetService passwordResetService) {
+            PasswordResetService passwordResetService, AccountSecurityService accountSecurity) {
         this.emailVerificationService = emailVerificationService;
         this.passwordResetService = passwordResetService;
+        this.accountSecurity = accountSecurity;
     }
 
     /**
@@ -87,6 +90,13 @@ public class AuthController {
     public ApiSuccessResponse<Void> customerForgotPassword(@Valid @RequestBody EmailRequest body,
             HttpServletRequest request) {
         passwordResetService.request(AccountType.CUSTOMER, body.email(), RequestContextResolver.from(request));
+        return ApiSuccessResponse.of(null);
+    }
+
+    @PostMapping(AuthPaths.EMAIL_CHANGE_CONFIRM)
+    public ApiSuccessResponse<Void> confirmEmailChange(@Valid @RequestBody TokenRequest body,
+            HttpServletRequest request) {
+        accountSecurity.confirmEmailChange(body.token(), RequestContextResolver.from(request));
         return ApiSuccessResponse.of(null);
     }
 

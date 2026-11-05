@@ -1,17 +1,20 @@
 package com.cherrycore.customer.domain;
 
-import com.cherrycore.shared.domain.value.PersonName;
-import com.cherrycore.shared.domain.value.PhoneNumber;
-
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
+
+import com.cherrycore.shared.domain.value.PersonName;
+import com.cherrycore.shared.domain.value.PhoneNumber;
 
 /**
  * Perfil global del cliente final. Su id es el de su cuenta (accounts.id).
  * Cada app guarda aparte los datos propios de su negocio.
  */
 public class Customer {
+
+    private static final String ANONYMOUS_FIRST_NAME = "Deleted";
+    private static final String ANONYMOUS_LAST_NAME = "User";
 
     private final UUID id;
     private PersonName firstName;
@@ -44,6 +47,15 @@ public class Customer {
         this.firstName = Objects.requireNonNull(newFirstName);
         this.lastName = Objects.requireNonNull(newLastName);
         this.phone = newPhone;
+    }
+
+    /**
+     * Borrado de cuenta (RGPD): se eliminan los datos personales.
+     */
+    public void anonymize() {
+        firstName = new PersonName(ANONYMOUS_FIRST_NAME);
+        lastName = new PersonName(ANONYMOUS_LAST_NAME);
+        phone = null;
     }
 
     public UUID id() {

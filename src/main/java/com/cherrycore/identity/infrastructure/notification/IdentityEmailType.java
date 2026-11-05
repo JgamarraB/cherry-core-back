@@ -10,7 +10,10 @@ enum IdentityEmailType {
     PASSWORD_RESET("email.password-reset"),
     REGISTRATION_ON_EXISTING_ACCOUNT("email.registration-existing"),
     ACCOUNT_LOCKED("email.account-locked"),
-    PASSWORD_CHANGED("email.password-changed");
+    PASSWORD_CHANGED("email.password-changed"),
+    EMAIL_CHANGE("email.email-change"),
+    EMAIL_CHANGED("email.email-changed"),
+    ACCOUNT_DELETED("email.account-deleted");
 
     private final String key;
 

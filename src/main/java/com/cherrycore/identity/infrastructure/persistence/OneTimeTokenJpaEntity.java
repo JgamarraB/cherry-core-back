@@ -39,6 +39,9 @@ public class OneTimeTokenJpaEntity {
     @Column(name = "used_at")
     private Instant usedAt;
 
+    @Column(name = "payload", updatable = false)
+    private String payload;
+
     @Column(name = "created_at", nullable = false, updatable = false, insertable = false)
     private Instant createdAt;
 
@@ -46,7 +49,8 @@ public class OneTimeTokenJpaEntity {
     }
 
     public OneTimeTokenJpaEntity(UUID id, UUID accountId, OneTimeTokenPurpose purpose, String tokenHash,
-            Instant expiresAt) {
+            Instant expiresAt, String payload) {
+        this.payload = payload;
         this.id = id;
         this.accountId = accountId;
         this.purpose = purpose;
@@ -72,6 +76,10 @@ public class OneTimeTokenJpaEntity {
 
     public Instant getExpiresAt() {
         return expiresAt;
+    }
+
+    public String getPayload() {
+        return payload;
     }
 
     public Instant getUsedAt() {

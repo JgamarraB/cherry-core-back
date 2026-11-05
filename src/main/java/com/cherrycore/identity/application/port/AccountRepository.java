@@ -26,4 +26,9 @@ public interface AccountRepository {
     List<Account> findSuperAdmins();
 
     void save(Account account);
+
+    /**
+     * Borrado lógico (deleted_at). La cuenta deja de aparecer en las consultas.
+     */
+    void softDelete(UUID accountId);
 }

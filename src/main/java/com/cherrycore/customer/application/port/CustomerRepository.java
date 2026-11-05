@@ -10,4 +10,6 @@ public interface CustomerRepository {
     Optional<Customer> findById(UUID id);
 
     void save(Customer customer);
+
+    void softDelete(UUID id);
 }

@@ -23,6 +23,8 @@ import org.springframework.security.web.savedrequest.SavedRequest;
 import org.springframework.stereotype.Component;
 
 import com.cherrycore.identity.domain.AccountType;
+import com.cherrycore.identity.infrastructure.security.AccountSessions;
+import com.cherrycore.identity.infrastructure.web.RequestContextResolver;
 import com.cherrycore.shared.infrastructure.security.AccountAuthorities;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -78,9 +80,13 @@ public class SessionLoginHandler {
             authorities.add(FactorGrantedAuthority.withFactor(AccountAuthorities.TOTP_FACTOR)
                     .issuedAt(clock.instant()).build());
         }
-        request.getSession(true);
+        HttpSession session = request.getSession(true);
         save(accountId, authorities, request, response);
         sessionFixationProtection.onAuthentication(contextHolder.getContext().getAuthentication(), request, response);
+        // Para la lista "dónde has iniciado sesión".
+        session.setAttribute(AccountSessions.IP_ATTRIBUTE, request.getRemoteAddr());
+        session.setAttribute(AccountSessions.USER_AGENT_ATTRIBUTE,
+                RequestContextResolver.from(request).userAgent());
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.cherrycore.identity.infrastructure.persistence;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -12,14 +13,17 @@ import com.cherrycore.identity.domain.Account;
 import com.cherrycore.identity.domain.AccountType;
 import com.cherrycore.identity.domain.EmailAddress;
 import com.cherrycore.identity.domain.PlatformRole;
+import com.cherrycore.shared.infrastructure.security.CurrentAccount;
 
 @Repository
 class AccountPersistenceAdapter implements AccountRepository {
 
     private final AccountJpaRepository jpaRepository;
+    private final Clock clock;
 
-    AccountPersistenceAdapter(AccountJpaRepository jpaRepository) {
+    AccountPersistenceAdapter(AccountJpaRepository jpaRepository, Clock clock) {
         this.jpaRepository = jpaRepository;
+        this.clock = clock;
     }
 
     @Override
@@ -53,6 +57,7 @@ class AccountPersistenceAdapter implements AccountRepository {
     public void save(Account account) {
         AccountJpaEntity entity = jpaRepository.findById(account.id())
                 .orElseGet(() -> new AccountJpaEntity(account.id(), account.type(), account.email().value()));
+        entity.setEmail(account.email().value());
         entity.setEmailVerifiedAt(account.emailVerifiedAt());
         entity.setPasswordHash(account.passwordHash());
         entity.setStatus(account.status());
@@ -63,6 +68,14 @@ class AccountPersistenceAdapter implements AccountRepository {
         entity.setLocale(account.locale().toLanguageTag());
         // Flush: la auditoría (SQL directo con FK a la cuenta) se inserta justo después.
         jpaRepository.saveAndFlush(entity);
+    }
+
+    @Override
+    public void softDelete(UUID accountId) {
+        jpaRepository.findById(accountId).ifPresent(entity -> {
+            entity.markDeleted(clock.instant(), CurrentAccount.id().orElse(accountId));
+            jpaRepository.saveAndFlush(entity);
+        });
     }
 
     private static Account toDomain(AccountJpaEntity entity) {

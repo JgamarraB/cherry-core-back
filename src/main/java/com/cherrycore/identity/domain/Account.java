@@ -13,7 +13,7 @@ public class Account {
 
     private final UUID id;
     private final AccountType type;
-    private final EmailAddress email;
+    private EmailAddress email;
     private Instant emailVerifiedAt;
     private String passwordHash;
     private AccountStatus status;
@@ -164,6 +164,31 @@ public class Account {
     }
 
     public void unlock() {
+        failedLoginAttempts = 0;
+        lockedUntil = null;
+    }
+
+    /**
+     * Email nuevo confirmado con el enlace enviado a ese email.
+     */
+    public void changeEmail(EmailAddress newEmail, Instant now) {
+        email = Objects.requireNonNull(newEmail);
+        emailVerifiedAt = now;
+    }
+
+    public void changePassword(String newPasswordHash) {
+        passwordHash = Objects.requireNonNull(newPasswordHash);
+    }
+
+    /**
+     * Borrado de cuenta (RGPD): se eliminan los datos personales y la cuenta
+     * queda desactivada. El email queda libre para registrarse de nuevo.
+     */
+    public void anonymize(EmailAddress placeholderEmail) {
+        email = Objects.requireNonNull(placeholderEmail);
+        passwordHash = null;
+        status = AccountStatus.DISABLED;
+        platformRole = null;
         failedLoginAttempts = 0;
         lockedUntil = null;
     }

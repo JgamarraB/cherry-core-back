@@ -34,11 +34,15 @@ public class OneTimeTokenIssuer {
      * @return el token en claro, para el enlace del email
      */
     public String issue(Account account, OneTimeTokenPurpose purpose, Duration ttl) {
+        return issue(account, purpose, ttl, null);
+    }
+
+    public String issue(Account account, OneTimeTokenPurpose purpose, Duration ttl, String payload) {
         Instant now = clock.instant();
         tokenRepository.invalidatePending(account.id(), purpose, now);
         GeneratedToken generated = tokenService.generate();
         tokenRepository.save(new OneTimeToken(UuidV7.generate(clock), account.id(), purpose,
-                generated.hash(), now.plus(ttl), null));
+                generated.hash(), now.plus(ttl), null, payload));
         return generated.rawValue();
     }
 }

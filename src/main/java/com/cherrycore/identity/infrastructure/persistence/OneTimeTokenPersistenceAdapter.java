@@ -23,7 +23,7 @@ class OneTimeTokenPersistenceAdapter implements OneTimeTokenRepository {
     public void save(OneTimeToken token) {
         OneTimeTokenJpaEntity entity = jpaRepository.findById(token.id())
                 .orElseGet(() -> new OneTimeTokenJpaEntity(token.id(), token.accountId(), token.purpose(),
-                        token.tokenHash(), token.expiresAt()));
+                        token.tokenHash(), token.expiresAt(), token.payload()));
         entity.setUsedAt(token.usedAt());
         jpaRepository.save(entity);
     }
@@ -32,7 +32,7 @@ class OneTimeTokenPersistenceAdapter implements OneTimeTokenRepository {
     public Optional<OneTimeToken> findByHashForUpdate(String tokenHash) {
         return jpaRepository.findWithLockByTokenHash(tokenHash)
                 .map(entity -> new OneTimeToken(entity.getId(), entity.getAccountId(), entity.getPurpose(),
-                        entity.getTokenHash(), entity.getExpiresAt(), entity.getUsedAt()));
+                        entity.getTokenHash(), entity.getExpiresAt(), entity.getUsedAt(), entity.getPayload()));
     }
 
     @Override

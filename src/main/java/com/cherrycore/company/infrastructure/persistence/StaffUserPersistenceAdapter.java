@@ -1,5 +1,6 @@
 package com.cherrycore.company.infrastructure.persistence;
 
+import java.time.Clock;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -11,14 +12,25 @@ import com.cherrycore.company.application.port.StaffUserRepository;
 import com.cherrycore.company.domain.StaffUser;
 import com.cherrycore.shared.domain.value.PersonName;
 import com.cherrycore.shared.domain.value.PhoneNumber;
+import com.cherrycore.shared.infrastructure.security.CurrentAccount;
 
 @Repository
 class StaffUserPersistenceAdapter implements StaffUserRepository {
 
     private final StaffUserJpaRepository staffUsers;
+    private final Clock clock;
 
-    StaffUserPersistenceAdapter(StaffUserJpaRepository staffUsers) {
+    StaffUserPersistenceAdapter(StaffUserJpaRepository staffUsers, Clock clock) {
         this.staffUsers = staffUsers;
+        this.clock = clock;
+    }
+
+    @Override
+    public void softDelete(UUID id) {
+        staffUsers.findById(id).ifPresent(entity -> {
+            entity.markDeleted(clock.instant(), CurrentAccount.id().orElse(id));
+            staffUsers.saveAndFlush(entity);
+        });
     }
 
     @Override

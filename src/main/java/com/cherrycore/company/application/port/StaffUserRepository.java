@@ -14,4 +14,6 @@ public interface StaffUserRepository {
     List<StaffUser> findByIds(Collection<UUID> ids);
 
     void save(StaffUser staffUser);
+
+    void softDelete(UUID id);
 }

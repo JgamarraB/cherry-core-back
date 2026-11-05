@@ -11,6 +11,9 @@ import com.cherrycore.shared.domain.value.PhoneNumber;
  */
 public class StaffUser {
 
+    private static final String ANONYMOUS_FIRST_NAME = "Deleted";
+    private static final String ANONYMOUS_LAST_NAME = "User";
+
     private final UUID id;
     private PersonName firstName;
     private PersonName lastName;
@@ -27,6 +30,15 @@ public class StaffUser {
         firstName = Objects.requireNonNull(newFirstName);
         lastName = Objects.requireNonNull(newLastName);
         phone = newPhone;
+    }
+
+    /**
+     * Borrado de cuenta (RGPD): se eliminan los datos personales.
+     */
+    public void anonymize() {
+        firstName = new PersonName(ANONYMOUS_FIRST_NAME);
+        lastName = new PersonName(ANONYMOUS_LAST_NAME);
+        phone = null;
     }
 
     public UUID id() {

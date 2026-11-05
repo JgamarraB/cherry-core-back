@@ -26,7 +26,7 @@ public class AccountJpaEntity extends AuditableJpaEntity {
     @Column(name = "type", nullable = false, updatable = false)
     private AccountType type;
 
-    @Column(name = "email", nullable = false, updatable = false)
+    @Column(name = "email", nullable = false)
     private String email;
 
     @Column(name = "email_verified_at")
@@ -70,6 +70,10 @@ public class AccountJpaEntity extends AuditableJpaEntity {
 
     public String getEmail() {
         return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public Instant getEmailVerifiedAt() {

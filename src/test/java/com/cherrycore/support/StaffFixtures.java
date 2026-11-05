@@ -2,6 +2,7 @@ package com.cherrycore.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -63,6 +64,13 @@ public final class StaffFixtures {
      * Primer login de backoffice: configura el MFA y devuelve el secreto TOTP.
      */
     public static String firstLoginWithMfaSetup(BrowserSession browser, String email) throws Exception {
+        return mfaSetup(browser, email).secret();
+    }
+
+    /**
+     * Primer login con alta del MFA: secreto TOTP + códigos de recuperación.
+     */
+    public static MfaSetup mfaSetup(BrowserSession browser, String email) throws Exception {
         MvcResult login = browser.postJson(AuthPaths.STAFF_LOGIN, loginBody(email));
         assertThat(JsonBodies.<String>read(login, "$.data.status")).isEqualTo("MFA_SETUP_REQUIRED");
         MvcResult setup = browser.postJson(AuthPaths.MFA_SETUP, "{}");
@@ -70,7 +78,10 @@ public final class StaffFixtures {
         MvcResult confirmed = browser.postJson(AuthPaths.MFA_SETUP_CONFIRM,
                 "{\"code\": \"" + TotpCodes.code(secret, 0) + "\"}");
         assertThat(confirmed.getResponse().getStatus()).isEqualTo(200);
-        return secret;
+        return new MfaSetup(secret, JsonBodies.read(confirmed, "$.data.recoveryCodes"));
+    }
+
+    public record MfaSetup(String secret, List<String> recoveryCodes) {
     }
 
     /**
@@ -119,15 +130,17 @@ public final class StaffFixtures {
             String tradeName) throws Exception {
         BrowserSession registration = new BrowserSession(mockMvc);
         String email = registerCompany(registration, mailbox, tradeName);
-        String secret = firstLoginWithMfaSetup(registration, email);
+        MfaSetup mfa = mfaSetup(registration, email);
+        String secret = mfa.secret();
         UUID companyId = UUID.fromString(JsonBodies.read(registration.get("/api/account/companies"),
                 "$.data[0].company.id"));
         approve(review, companyId);
         BrowserSession session = login(mockMvc, email, secret);
-        return new Owner(email, secret, session, companyId);
+        return new Owner(email, secret, mfa.recoveryCodes(), session, companyId);
     }
 
-    public record Owner(String email, String totpSecret, BrowserSession session, UUID companyId) {
+    public record Owner(String email, String totpSecret, List<String> recoveryCodes,
+            BrowserSession session, UUID companyId) {
     }
 
     public static MvcResult put(BrowserSession browser, String path, String json) throws Exception {

@@ -2,6 +2,7 @@ package com.cherrycore.identity.infrastructure.notification;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -9,6 +10,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import com.cherrycore.identity.application.port.IdentityNotifier;
 import com.cherrycore.identity.domain.Account;
+import com.cherrycore.identity.domain.EmailAddress;
 import com.cherrycore.shared.infrastructure.config.CherryCoreProperties;
 import com.cherrycore.shared.infrastructure.mail.EmailRequested;
 
@@ -59,6 +61,24 @@ class EventPublishingIdentityNotifier implements IdentityNotifier {
     @Override
     public void passwordChanged(Account account) {
         publish(IdentityEmailType.PASSWORD_CHANGED, account, account.email().value(), frontend.loginUrl().toString());
+    }
+
+    @Override
+    public void emailChangeRequested(Account account, EmailAddress newEmail, String rawToken) {
+        publish(IdentityEmailType.EMAIL_CHANGE, account, newEmail.value(),
+                linkWithToken(frontend.emailChangeUrl(), rawToken), tokenSettings.emailVerificationTtl().toHours());
+    }
+
+    @Override
+    public void emailChanged(EmailAddress previousEmail, Locale locale) {
+        publisher.publishEvent(new EmailRequested(IdentityEmailType.EMAIL_CHANGED.key(), previousEmail.value(),
+                locale, null, frontend.passwordResetUrl().toString(), List.of()));
+    }
+
+    @Override
+    public void accountDeleted(EmailAddress email, Locale locale) {
+        publisher.publishEvent(new EmailRequested(IdentityEmailType.ACCOUNT_DELETED.key(), email.value(), locale,
+                null, null, List.of()));
     }
 
     private void publish(IdentityEmailType type, Account account, String to, String actionUrl, Object... args) {
