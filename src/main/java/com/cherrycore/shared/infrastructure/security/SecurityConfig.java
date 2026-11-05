@@ -95,7 +95,7 @@ public class SecurityConfig {
         return http
                 .securityMatcher(SecurityPaths.ALL_PATHS)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.GET, SecurityPaths.HEALTH).permitAll()
+                        .requestMatchers(HttpMethod.GET, SecurityPaths.HEALTH, SecurityPaths.HEALTH_PROBES).permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .jwt(jwt -> jwt.decoder(jwtDecoder)

@@ -44,7 +44,8 @@ public record CherryCoreProperties(
         @NotNull @Valid Branding branding,
         @NotNull @Valid Storage storage,
         @Valid Social social,
-        @Valid Bootstrap bootstrap
+        @Valid Bootstrap bootstrap,
+        @NotNull @Valid Retention retention
 ) {
 
     public static final String PREFIX = "cherrycore";
@@ -254,6 +255,20 @@ public record CherryCoreProperties(
             return teamId != null && !teamId.isBlank() && keyId != null && !keyId.isBlank()
                     && privateKeyLocation != null;
         }
+    }
+
+    /**
+     * Limpieza periódica de datos caducados (la base de datos no crece sin fin).
+     *
+     * @param cron                  cuándo se ejecuta (expresión cron de Spring)
+     * @param expiredTokensKeep     cuánto se guardan tokens y autorizaciones ya caducados
+     * @param authEventsKeep        cuánto se guarda la auditoría de seguridad
+     */
+    public record Retention(
+            @NotBlank String cron,
+            @NotNull Duration expiredTokensKeep,
+            @NotNull Duration authEventsKeep
+    ) {
     }
 
     /**

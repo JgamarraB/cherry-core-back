@@ -78,6 +78,8 @@ spring:
       enabled: true
 
 server:
+  # Al parar, termina las peticiones en curso (despliegues sin cortes).
+  shutdown: graceful
   # Confía en X-Forwarded-For solo si viene de un proxy de red interna (IP real del cliente).
   forward-headers-strategy: native
   error:
@@ -95,6 +97,9 @@ management:
   endpoint:
     health:
       show-details: never
+      # /actuator/health/liveness y /readiness para el orquestador (Docker, Kubernetes...).
+      probes:
+        enabled: true
   health:
     # Que un fallo del servidor de correo no marque la app como caída.
     mail:
@@ -174,6 +179,12 @@ cherrycore:
   oauth:
     # Aplicaciones que pueden pedir tokens. Se definen por entorno.
     clients: []
+
+  retention:
+    # Todos los días a las 3:30 (UTC) se borran datos caducados.
+    cron: "0 30 3 * * *"
+    expired-tokens-keep: 7d
+    auth-events-keep: 365d
 
   bootstrap:
     # Primer superadmin: se crea al arrancar si no existe ninguno (recibe un email para poner su contraseña).

@@ -1,0 +1,11 @@
+target/
+.git/
+.idea/
+.settings/
+.classpath
+.project
+.DS_Store
+docker/.env
+*.pem
+*.p8
+*.log

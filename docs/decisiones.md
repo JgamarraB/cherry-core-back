@@ -31,8 +31,8 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 
 ## D3 · Seguridad del login — 2026-11-05
 
-- **Login social** (Google y Apple) para clientes y backoffice. Se implementa después del login con email.
-- **MFA**: obligatorio en backoffice, opcional para clientes.
+- **Login social** (Google y Apple). Se vincula a una cuenta existente solo si el proveedor garantiza el email. Los clientes nuevos aceptan los términos antes de crear la cuenta. En backoffice nunca crea cuentas.
+- **MFA** con app autenticadora (TOTP) + 10 códigos de recuperación: obligatorio en backoffice (se configura en el primer login), opcional para clientes. Un código no se puede reutilizar; 5 fallos anulan el login a medias. El secreto se guarda cifrado (AES-256-GCM).
 - **Email verificado** obligatorio para poder entrar.
 - Contraseñas con **Argon2id**. Mínimo 10 caracteres, sin reglas de mayúsculas/símbolos (NIST).
 - **No se revela si un email existe**: mismo error y mismo tiempo de respuesta en login; 202 siempre en registro, reenvío y "olvidé mi contraseña".
@@ -47,7 +47,7 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - **Sin JSP/Thymeleaf.** Las pantallas de login, registro y MFA son un **frontend propio** (SPA). El backend solo expone JSON.
 - La sesión de login de CherryCore es una cookie `HttpOnly` guardada en Postgres (Spring Session): permite varias instancias.
 - Las apps usan el patrón **BFF**: su backend recibe y guarda los tokens; el navegador solo tiene una cookie. PKCE obligatorio y refresh tokens que cambian en cada uso.
-- Contrato para el frontend y las apps: [api-login.md](api-login.md).
+- Contrato para el frontend: [api.md](api.md). Cómo se conecta una app: [integracion-apps.md](integracion-apps.md).
 
 ## D5 · Formato de respuestas y errores — 2026-11-05
 
@@ -72,8 +72,11 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 
 - Las empresas se registran solas pero quedan **pendientes de aprobación** por un **superadmin** de la plataforma (nosotros).
 - El superadmin puede ver y gestionar todas las apps.
-- Cada empresa crea **sus propios roles**. Siempre tiene `OWNER`, `ADMIN` y `STAFF`, que **no se pueden borrar**.
-- **Permisos**: cada app registra su catálogo de permisos en CherryCore y cada empresa los combina en sus roles (como Shopify). Se implementa en la fase 3.
+- Cada empresa crea **sus propios roles**. Siempre tiene `OWNER`, `ADMIN` y `STAFF`, que **no se pueden borrar** ni renombrar. `OWNER` tiene siempre todos los permisos; los de `ADMIN` y `STAFF` los ajusta la empresa.
+- Solo un `OWNER` da o quita el rol `OWNER`, y siempre queda al menos uno.
+- **Permisos** (como Shopify): cada app **sincroniza** su catálogo al arrancar con un token de máquina; cada empresa los combina en sus roles. CherryCore se registra a sí misma con los permisos de gestión de empresa.
+- Las apps se activan por empresa a mano desde el panel; más adelante lo hará la **suscripción de Stripe**.
+- Backoffice en varias empresas: elige con cuál entrar. El token de la app lleva `tenant_id`, `tenant_role` y `permissions` (solo los de esa app), y se revalida en cada refresh.
 
 ## D8 · Datos y auditoría — 2026-11-05
 
@@ -94,7 +97,34 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - **Desarrollo**: Mailpit (servidor de correo local en Docker, no envía nada real).
 - **Producción**: **Brevo** por SMTP (empresa de la UE, 300 emails/día gratis). Solo cambian las variables `MAIL_*`.
 
-## Pendiente de decidir
+## D11 · Frontend propio de CherryCore — 2026-11-05
 
-- Tecnología del frontend de login.
-- Contenido del JWT para backoffice (empresa activa y permisos) — fase 3.
+- Un único frontend con: login/registro/recuperación, "mi cuenta", gestión de la empresa y **panel de superadmin**.
+- Se sirve en el **mismo dominio** que la API y usa la **sesión con cookie + CSRF** (no tokens). Los tokens son solo para las apps externas.
+
+## D12 · Ficheros (logos y multimedia) — 2026-11-05
+
+- Almacenamiento **compatible con S3**: el código no depende del proveedor.
+- MinIO dejó de publicar imágenes Docker gratuitas: en local y tests usamos **RustFS** (compatible con MinIO, Apache 2.0). En el servidor vale RustFS o MinIO compilado.
+- Una carpeta por empresa: `companies/{id}/public/...` (público, p. ej. logo). El resto del bucket es privado.
+- El tipo de imagen se comprueba por el contenido (PNG, JPEG, WEBP). **Nunca SVG** (puede llevar JavaScript).
+- Los emails de una empresa (invitaciones, aprobación) llevan **su logo o, si no tiene, su nombre comercial**. Los de cuenta llevan la marca de la plataforma.
+
+## D13 · Borrado de cuenta (RGPD) — 2026-11-05
+
+- Borrado lógico + **anonimización** (nombre, email, teléfono). El email queda libre para registrarse otra vez.
+- Cada módulo anonimiza lo suyo al recibir el evento de borrado. No se permite si es el único `OWNER` de una empresa.
+- Avisar a las apps (webhooks) queda para más adelante.
+
+## D14 · Mantenimiento y despliegue — 2026-11-05
+
+- Limpieza diaria: autorizaciones OAuth y tokens caducados (7 días) y auditoría (365 días). Configurable.
+- Imagen Docker propia (JRE 21, usuario sin privilegios, parada ordenada) y sondas `/actuator/health/liveness` y `/readiness`.
+- El primer superadmin se crea al arrancar con `SUPER_ADMIN_EMAIL`.
+
+## Pendiente
+
+- Tecnología del frontend de CherryCore.
+- Suscripciones con Stripe (fase 2 del producto).
+- Webhooks a las apps (cuenta borrada, empresa suspendida...).
+- Passkeys (WebAuthn) como alternativa al TOTP.

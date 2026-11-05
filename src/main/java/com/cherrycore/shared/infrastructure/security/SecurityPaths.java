@@ -7,6 +7,8 @@ public final class SecurityPaths {
 
     public static final String ALL_PATHS = "/**";
     public static final String HEALTH = "/actuator/health";
+    /** Sondas liveness/readiness del orquestador (sin detalles internos). */
+    public static final String HEALTH_PROBES = "/actuator/health/*";
 
     /*
      * API del frontend propio de CherryCore (mismo dominio): sesión con cookie + CSRF.

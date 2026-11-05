@@ -48,6 +48,12 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
+    void orchestratorProbesArePublic() throws Exception {
+        mockMvc.perform(get("/actuator/health/liveness")).andExpect(status().isOk());
+        mockMvc.perform(get("/actuator/health/readiness")).andExpect(status().isOk());
+    }
+
+    @Test
     void sensitiveActuatorEndpointsAreNotReachable() throws Exception {
         mockMvc.perform(get("/actuator/env")).andExpect(status().isUnauthorized());
         mockMvc.perform(get("/actuator/heapdump")).andExpect(status().isUnauthorized());

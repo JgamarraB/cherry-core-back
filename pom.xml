@@ -187,6 +187,8 @@
 	</dependencies>
 
 	<build>
+		<!-- Nombre fijo del jar para el Dockerfile -->
+		<finalName>cherry-core</finalName>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>

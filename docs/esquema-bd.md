@@ -1,6 +1,6 @@
 # Esquema de base de datos de CherryCore
 
-Estado (2026-11-05): ✅ = creada con Flyway (se indica la migración). Sin marca = propuesta para fases siguientes.
+Estado (2026-11-05): todas las tablas creadas con Flyway (se indica la migración).
 
 ## Reglas comunes (todas las tablas)
 
@@ -22,11 +22,13 @@ Estado (2026-11-05): ✅ = creada con Flyway (se indica la migración). Sin marc
 ```
 accounts ─┬─ 1:1 ─ customers ─ 1:N ─ customer_addresses
           ├─ 1:1 ─ staff_users ─ 1:N ─ memberships ─ N:1 ─ companies
-          ├─ 1:N ─ mfa_factors                     └─ N:1 ─ company_roles ─ 1:N ─ company_role_permissions
+          ├─ 1:N ─ mfa_factors / mfa_recovery_codes └─ N:1 ─ company_roles ─ 1:N ─ company_role_permissions
           ├─ 1:N ─ federated_identities (Google, Apple)
           ├─ 1:N ─ one_time_tokens (verificar email, recuperar contraseña)
           └─ 1:N ─ auth_events (auditoría de seguridad)
 companies ─ 1:N ─ staff_invitations
+companies ─ N:M ─ applications (company_applications)
+applications ─ 1:N ─ application_permissions ─ N:M ─ company_roles
 ```
 
 **Por qué `accounts`:** guarda lo de seguridad (email, contraseña, bloqueo, MFA) en un único sitio para clientes y backoffice. `customers` y `staff_users` guardan los datos de perfil. Así el MFA, el login social y los tokens se programan una sola vez.
@@ -47,17 +49,17 @@ companies ─ 1:N ─ staff_invitations
 | `platform_role` | `VARCHAR` | Solo `SUPER_ADMIN` o NULL. Solo en cuentas `STAFF` |
 | `locale` | `VARCHAR` | Idioma de la cuenta (`es`, `en`): idioma de los emails |
 
-### `mfa_factors`
-`account_id`, `type` (`TOTP` / `WEBAUTHN`), `secret` (**cifrado**), `confirmed_at`, `last_used_at`.
+### `mfa_factors` ✅ V6
+`account_id`, `type` (`TOTP`), `secret_encrypted` (**AES-256-GCM**), `confirmed_at`, `last_used_step` (impide reutilizar un código).
 
-### `mfa_recovery_codes`
+### `mfa_recovery_codes` ✅ V6
 `account_id`, `code_hash`, `used_at`. Códigos de emergencia por si se pierde el móvil.
 
-### `federated_identities`
-`account_id`, `provider` (`GOOGLE` / `APPLE`), `provider_subject` (id del usuario en Google/Apple). Único: `provider + provider_subject`.
+### `federated_identities` ✅ V8
+`account_id`, `provider` (`GOOGLE` / `APPLE`), `provider_subject` (id del usuario en Google/Apple), `email_at_link`. Único: `provider + provider_subject`.
 
 ### `one_time_tokens` ✅ V2
-`account_id`, `purpose` (`EMAIL_VERIFICATION` / `PASSWORD_RESET`), `token_hash` (**nunca el token en claro**), `expires_at`, `used_at`.
+`account_id`, `purpose` (`EMAIL_VERIFICATION` / `PASSWORD_RESET` / `EMAIL_CHANGE`), `payload` (email nuevo, V7), `token_hash` (**nunca el token en claro**), `expires_at`, `used_at`.
 
 ### `auth_events` ✅ V2
 `account_id` (puede ser NULL si el email no existe), `type` (`LOGIN_OK`, `LOGIN_FAILED`, `PASSWORD_RESET`, `MFA_FAILED`…), `ip`, `user_agent`, `occurred_at`. Solo inserción.
@@ -72,31 +74,43 @@ companies ─ 1:N ─ staff_invitations
 
 ## Empresas y backoffice
 
-### `companies`
+### `companies` ✅ V5
 | Columna | Tipo | Nota |
 |---|---|---|
 | `legal_name` / `trade_name` | `VARCHAR` | Razón social / nombre comercial |
-| `tax_id` | `VARCHAR` | CIF/NIF. Único |
+| `tax_id` | `VARCHAR` | CIF/NIF normalizado. Único por país |
 | `email`, `phone` | `VARCHAR` | Contacto |
 | `country_code` | `CHAR(2)` | |
 | `status` | `VARCHAR` | `PENDING_APPROVAL` / `ACTIVE` / `SUSPENDED` / `REJECTED` |
 | `reviewed_at` / `reviewed_by` | | Qué superadmin la aprobó o rechazó |
-| `rejection_reason` | `TEXT` | Obligatorio si `REJECTED` |
+| `rejection_reason` | `VARCHAR` | Obligatorio si `REJECTED` |
+| `logo_key` | `VARCHAR` | Ruta del logo en el almacenamiento (o NULL) |
 
-### `staff_users` (id = `accounts.id`)
+### `staff_users` ✅ V5 (id = `accounts.id`)
 `first_name`, `last_name`, `phone`.
 
-### `company_roles`
+### `company_roles` ✅ V5
 `company_id`, `code`, `name`, `is_system` (`true` en `OWNER` / `ADMIN` / `STAFF` → no se pueden borrar ni renombrar). Único: `company_id + code`.
 
-### `company_role_permissions`
-`role_id`, `permission` (código del permiso). El catálogo lo registra cada app en CherryCore (fase 3).
+### `company_role_permissions` ✅ V5
+`role_id`, `permission_id` (→ `application_permissions`). OWNER no tiene filas: tiene todos.
 
-### `memberships`
+### `memberships` ✅ V5
 `staff_user_id`, `company_id`, `role_id`, `status` (`ACTIVE` / `SUSPENDED`). Único: `staff_user_id + company_id`.
 
-### `staff_invitations`
-`company_id`, `email`, `role_id`, `token_hash`, `expires_at`, `accepted_at`, `invited_by`.
+### `staff_invitations` ✅ V5
+`company_id`, `email`, `role_id`, `token_hash`, `expires_at`, `accepted_at`, `revoked_at`. Quien invita queda en `created_by`.
+
+## Apps y permisos
+
+### `applications` ✅ V5
+`code` (`cherrycore`, `lirgar`...), `name`, `status` (`ACTIVE` / `DISABLED`).
+
+### `application_permissions` ✅ V5
+`application_id`, `code` (`vehicles.manage`...), `description`. Lo sincroniza cada app.
+
+### `company_applications` ✅ V5
+`company_id`, `application_id`, `status` (`ENABLED` / `DISABLED`). Qué apps puede usar cada empresa (futuro: suscripción).
 
 ## Tablas de framework ✅ V3, V4
 
