@@ -61,6 +61,12 @@ spring:
     fallback-to-system-locale: false
     encoding: UTF-8
 
+  servlet:
+    multipart:
+      # Logos y ficheros pequeños. Límite estricto para evitar abusos.
+      max-file-size: 2MB
+      max-request-size: 3MB
+
   web:
     # Idioma cuando la petición no trae Accept-Language.
     locale: es
@@ -106,12 +112,19 @@ cherrycore:
     login-url: ${CHERRYCORE_FRONTEND_URL}/login
     email-verification-url: ${CHERRYCORE_FRONTEND_URL}/verify-email
     password-reset-url: ${CHERRYCORE_FRONTEND_URL}/reset-password
+    invitation-url: ${CHERRYCORE_FRONTEND_URL}/invitation
+    email-change-url: ${CHERRYCORE_FRONTEND_URL}/confirm-email-change
+    admin-url: ${CHERRYCORE_FRONTEND_URL}/admin
+    social-signup-url: ${CHERRYCORE_FRONTEND_URL}/register/complete
 
   legal:
     terms-version: "2026-11-05"
 
   customers:
     max-addresses: 10
+
+  companies:
+    invitation-ttl: 7d
 
   i18n:
     default-locale: es
@@ -121,6 +134,8 @@ cherrycore:
     from: ${MAIL_FROM}
 
   security:
+    # Clave para cifrar secretos (MFA). Base64 de 32 bytes: openssl rand -base64 32
+    encryption-key: ${CHERRYCORE_ENCRYPTION_KEY}
     tokens:
       access-token-ttl: 15m
       customer-refresh-token-ttl: 30d

@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.cherrycore.customer.application.port.CustomerAddressRepository;
 import com.cherrycore.customer.application.port.CustomerRepository;
-import com.cherrycore.customer.domain.CountryCode;
+import com.cherrycore.shared.domain.value.CountryCode;
 import com.cherrycore.customer.domain.CustomerAddress;
 import com.cherrycore.customer.domain.CustomerErrorCode;
 import com.cherrycore.customer.domain.PostalAddress;

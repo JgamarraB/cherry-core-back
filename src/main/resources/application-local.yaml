@@ -21,9 +21,15 @@ cherrycore:
     login-url: http://localhost:4200/login
     email-verification-url: http://localhost:4200/verify-email
     password-reset-url: http://localhost:4200/reset-password
+    invitation-url: http://localhost:4200/invitation
+    email-change-url: http://localhost:4200/confirm-email-change
+    admin-url: http://localhost:4200/admin
+    social-signup-url: http://localhost:4200/register/complete
   mail:
     from: no-reply@cherrycore.local
   security:
+    # Clave SOLO de desarrollo/tests. Nunca usarla en producción.
+    encryption-key: ZGV2LW9ubHktZW5jcnlwdGlvbi1rZXktMzItYnl0ZXM=
     session:
       # En local no hay HTTPS.
       secure-cookie: false

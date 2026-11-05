@@ -1,8 +1,9 @@
-package com.cherrycore.customer.domain;
+package com.cherrycore.shared.domain.value;
 
 import java.util.Locale;
 import java.util.Set;
 
+import com.cherrycore.shared.domain.error.CommonErrorCode;
 import com.cherrycore.shared.domain.error.DomainException;
 
 /**
@@ -14,7 +15,7 @@ public record CountryCode(String value) {
 
     public CountryCode {
         if (value == null || !ISO_COUNTRIES.contains(value)) {
-            throw new DomainException(CustomerErrorCode.INVALID_COUNTRY_CODE);
+            throw new DomainException(CommonErrorCode.INVALID_COUNTRY_CODE);
         }
     }
 

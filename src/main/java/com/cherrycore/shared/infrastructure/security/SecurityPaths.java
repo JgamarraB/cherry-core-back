@@ -8,6 +8,17 @@ public final class SecurityPaths {
     public static final String ALL_PATHS = "/**";
     public static final String HEALTH = "/actuator/health";
 
+    /*
+     * API del frontend propio de CherryCore (mismo dominio): sesión con cookie + CSRF.
+     * Las apps externas usan el resto de /api con token Bearer.
+     */
+    public static final String AUTH_API = "/api/auth/**";
+    public static final String AUTH_API_PREFIX = "/api/auth/";
+    public static final String ACCOUNT_API = "/api/account/**";
+    public static final String COMPANY_API = "/api/company/**";
+    public static final String COMPANY_API_ROOT = "/api/company";
+    public static final String ADMIN_API = "/api/admin/**";
+
     private SecurityPaths() {
     }
 }

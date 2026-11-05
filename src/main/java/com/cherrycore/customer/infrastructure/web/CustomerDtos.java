@@ -3,7 +3,7 @@ package com.cherrycore.customer.infrastructure.web;
 import java.util.UUID;
 
 import com.cherrycore.customer.domain.CustomerAddress;
-import com.cherrycore.customer.domain.PersonName;
+import com.cherrycore.shared.domain.value.PersonName;
 import com.cherrycore.customer.domain.PostalAddress;
 import com.cherrycore.identity.domain.EmailAddress;
 import com.cherrycore.identity.infrastructure.web.AuthDtos;

@@ -57,10 +57,39 @@ public class AccountRegistrationService {
     @Transactional(propagation = Propagation.MANDATORY)
     public Optional<Account> registerCustomer(String rawEmail, String rawPassword, Locale requestedLocale,
             RequestContext context) {
+        return register(AccountType.CUSTOMER, rawEmail, rawPassword, requestedLocale, context);
+    }
+
+    /**
+     * Igual que {@link #registerCustomer} para una cuenta de backoffice (alta de empresa).
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Optional<Account> registerStaff(String rawEmail, String rawPassword, Locale requestedLocale,
+            RequestContext context) {
+        return register(AccountType.STAFF, rawEmail, rawPassword, requestedLocale, context);
+    }
+
+    /**
+     * Crea una cuenta de backoffice ya verificada (al aceptar una invitación).
+     * El llamante debe haber comprobado que no existe.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Account createInvitedStaff(EmailAddress email, String rawPassword, Locale requestedLocale,
+            RequestContext context) {
+        settings.passwordPolicy().validate(rawPassword, email);
+        Account account = Account.newInvitedStaff(UuidV7.generate(clock), email, passwordHasher.hash(rawPassword),
+                settings.resolveLocale(requestedLocale), clock.instant());
+        accountRepository.save(account);
+        eventLogger.log(AuthEventType.ACCOUNT_REGISTERED, account.id(), context);
+        return account;
+    }
+
+    private Optional<Account> register(AccountType type, String rawEmail, String rawPassword,
+            Locale requestedLocale, RequestContext context) {
         EmailAddress email = EmailAddress.of(rawEmail);
         settings.passwordPolicy().validate(rawPassword, email);
 
-        Optional<Account> existing = accountRepository.findByTypeAndEmail(AccountType.CUSTOMER, email);
+        Optional<Account> existing = accountRepository.findByTypeAndEmail(type, email);
         if (existing.isPresent()) {
             passwordHasher.simulateMatch(rawPassword);
             eventLogger.log(AuthEventType.REGISTRATION_ON_EXISTING_EMAIL, existing.get().id(), context);
@@ -68,8 +97,11 @@ public class AccountRegistrationService {
             return Optional.empty();
         }
 
-        Account account = Account.newCustomer(UuidV7.generate(clock), email, passwordHasher.hash(rawPassword),
-                settings.resolveLocale(requestedLocale));
+        String passwordHash = passwordHasher.hash(rawPassword);
+        Locale locale = settings.resolveLocale(requestedLocale);
+        Account account = type == AccountType.CUSTOMER
+                ? Account.newCustomer(UuidV7.generate(clock), email, passwordHash, locale)
+                : Account.newStaff(UuidV7.generate(clock), email, passwordHash, locale);
         accountRepository.save(account);
 
         String rawToken = tokenIssuer.issue(account, OneTimeTokenPurpose.EMAIL_VERIFICATION,

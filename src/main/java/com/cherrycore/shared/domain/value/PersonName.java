@@ -1,5 +1,6 @@
-package com.cherrycore.customer.domain;
+package com.cherrycore.shared.domain.value;
 
+import com.cherrycore.shared.domain.error.CommonErrorCode;
 import com.cherrycore.shared.domain.error.DomainException;
 
 /**
@@ -13,7 +14,7 @@ public record PersonName(String value) {
     public PersonName {
         if (value == null || value.isBlank() || value.length() > MAX_LENGTH
                 || value.chars().anyMatch(Character::isISOControl) || !value.equals(value.strip())) {
-            throw new DomainException(CustomerErrorCode.INVALID_NAME);
+            throw new DomainException(CommonErrorCode.INVALID_NAME);
         }
     }
 

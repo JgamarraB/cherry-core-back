@@ -35,6 +35,7 @@ public record CherryCoreProperties(
         @NotNull @Valid Frontend frontend,
         @NotNull @Valid Legal legal,
         @NotNull @Valid Customers customers,
+        @NotNull @Valid Companies companies,
         @NotNull @Valid I18n i18n,
         @NotNull @Valid Mail mail,
         @NotNull @Valid Security security,
@@ -52,7 +53,11 @@ public record CherryCoreProperties(
     public record Frontend(
             @NotNull URI loginUrl,
             @NotNull URI emailVerificationUrl,
-            @NotNull URI passwordResetUrl
+            @NotNull URI passwordResetUrl,
+            @NotNull URI invitationUrl,
+            @NotNull URI emailChangeUrl,
+            @NotNull URI adminUrl,
+            @NotNull URI socialSignupUrl
     ) {
     }
 
@@ -66,6 +71,12 @@ public record CherryCoreProperties(
      * Límites del perfil de cliente.
      */
     public record Customers(@Positive int maxAddresses) {
+    }
+
+    /**
+     * @param invitationTtl validez de las invitaciones de personal
+     */
+    public record Companies(@NotNull Duration invitationTtl) {
     }
 
     public record I18n(
@@ -82,7 +93,12 @@ public record CherryCoreProperties(
     public record Mail(@NotBlank @Email String from) {
     }
 
+    /**
+     * @param encryptionKey clave AES de 256 bits en Base64 para cifrar secretos
+     *                      (MFA). Generarla con: {@code openssl rand -base64 32}
+     */
     public record Security(
+            @NotBlank String encryptionKey,
             @NotNull @Valid Tokens tokens,
             @NotNull @Valid SigningKey signingKey,
             @NotNull @Valid Password password,
@@ -233,10 +249,16 @@ public record CherryCoreProperties(
             @NotNull ClientType type,
             String clientSecret,
             @NotNull ClientAudience audience,
+            String applicationCode,
             @NotEmpty List<URI> redirectUris,
             List<URI> postLogoutRedirectUris,
             @NotEmpty Set<String> scopes
     ) {
+
+        @AssertTrue(message = "staff clients need an application-code (the app whose permissions go in the token)")
+        public boolean isApplicationConsistent() {
+            return audience != ClientAudience.STAFF || (applicationCode != null && !applicationCode.isBlank());
+        }
 
         @AssertTrue(message = "confidential clients need a client-secret; public clients must not have one")
         public boolean isSecretConsistent() {

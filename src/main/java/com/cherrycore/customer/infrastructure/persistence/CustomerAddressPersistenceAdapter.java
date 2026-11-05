@@ -8,7 +8,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Repository;
 
 import com.cherrycore.customer.application.port.CustomerAddressRepository;
-import com.cherrycore.customer.domain.CountryCode;
+import com.cherrycore.shared.domain.value.CountryCode;
 import com.cherrycore.customer.domain.CustomerAddress;
 import com.cherrycore.customer.domain.PostalAddress;
 import com.cherrycore.shared.infrastructure.security.CurrentAccount;

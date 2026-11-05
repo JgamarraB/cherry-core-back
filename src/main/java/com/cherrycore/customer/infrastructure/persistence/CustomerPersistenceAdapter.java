@@ -7,8 +7,8 @@ import org.springframework.stereotype.Repository;
 
 import com.cherrycore.customer.application.port.CustomerRepository;
 import com.cherrycore.customer.domain.Customer;
-import com.cherrycore.customer.domain.PersonName;
-import com.cherrycore.customer.domain.PhoneNumber;
+import com.cherrycore.shared.domain.value.PersonName;
+import com.cherrycore.shared.domain.value.PhoneNumber;
 
 @Repository
 class CustomerPersistenceAdapter implements CustomerRepository {

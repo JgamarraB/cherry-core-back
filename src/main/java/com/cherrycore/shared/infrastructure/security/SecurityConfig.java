@@ -21,7 +21,6 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import com.cherrycore.identity.infrastructure.web.AuthPaths;
 import com.cherrycore.shared.infrastructure.config.CherryCoreProperties;
 import com.cherrycore.shared.infrastructure.web.ApiErrorWriter;
 
@@ -30,8 +29,9 @@ import com.cherrycore.shared.infrastructure.web.ApiErrorWriter;
  * {@code AuthorizationServerConfig} y va primero).
  *
  * <ol>
- *   <li><b>API de login</b> ({@code /api/auth/**}): la usa el frontend de
- *       login. Sesión con cookie + protección CSRF + límite de peticiones.</li>
+ *   <li><b>API del frontend de CherryCore</b> ({@code /api/auth}, {@code /api/account},
+ *       {@code /api/company}, {@code /api/admin}): sesión con cookie + CSRF.
+ *       Login con límite de peticiones; admin solo superadmin; company solo backoffice.</li>
  *   <li><b>Resto de la API</b>: token Bearer (JWT) obligatorio, sin sesión
  *       ni cookies (por eso no aplica CSRF). Denegar por defecto.</li>
  * </ol>
@@ -56,8 +56,15 @@ public class SecurityConfig {
             ApiErrorWriter errorWriter, JsonAuthenticationEntryPoint authenticationEntryPoint,
             JsonAccessDeniedHandler accessDeniedHandler, SecurityHeadersCustomizer securityHeaders) throws Exception {
         http
-                .securityMatcher(AuthPaths.ALL)
-                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .securityMatcher(SecurityPaths.AUTH_API, SecurityPaths.ACCOUNT_API, SecurityPaths.COMPANY_API_ROOT,
+                        SecurityPaths.COMPANY_API, SecurityPaths.ADMIN_API)
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(SecurityPaths.AUTH_API).permitAll()
+                        .requestMatchers(SecurityPaths.ADMIN_API)
+                        .hasRole(AccountAuthorities.SUPER_ADMIN)
+                        .requestMatchers(SecurityPaths.COMPANY_API_ROOT, SecurityPaths.COMPANY_API)
+                        .hasRole(AccountAuthorities.STAFF)
+                        .anyRequest().authenticated())
                 // Cookie XSRF-TOKEN + cabecera X-XSRF-TOKEN (Angular lo hace solo).
                 .csrf(csrf -> csrf.spa())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))

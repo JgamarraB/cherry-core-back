@@ -1,5 +1,8 @@
 package com.cherrycore.customer.domain;
 
+import com.cherrycore.shared.domain.value.PersonName;
+import com.cherrycore.shared.domain.value.PhoneNumber;
+
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;

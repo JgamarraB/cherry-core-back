@@ -53,9 +53,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 .build();
     }
 
+    /* Solo los POST de la API pública de autenticación (login, registro, MFA...). */
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !HttpMethod.POST.matches(request.getMethod());
+        return !HttpMethod.POST.matches(request.getMethod())
+                || !request.getRequestURI().startsWith(SecurityPaths.AUTH_API_PREFIX);
     }
 
     @Override

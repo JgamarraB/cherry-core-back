@@ -56,11 +56,7 @@ class RegisteredClientsInitializer implements ApplicationRunner {
                 .redirectUris(uris -> uris.addAll(toStrings(client.redirectUris())))
                 .postLogoutRedirectUris(uris -> uris.addAll(toStrings(client.postLogoutRedirectUris())))
                 .scopes(scopes -> scopes.addAll(client.scopes()))
-                .clientSettings(ClientSettings.builder()
-                        .requireProofKey(true)
-                        .requireAuthorizationConsent(false)
-                        .setting(ClientSettingNames.AUDIENCE, client.audience().name())
-                        .build())
+                .clientSettings(clientSettings(client))
                 .tokenSettings(tokenSettings(client.audience()));
 
         if (client.type() == ClientType.CONFIDENTIAL) {
@@ -71,6 +67,17 @@ class RegisteredClientsInitializer implements ApplicationRunner {
             builder.clientAuthenticationMethod(ClientAuthenticationMethod.NONE);
         }
         return builder.build();
+    }
+
+    private static ClientSettings clientSettings(Client client) {
+        ClientSettings.Builder settings = ClientSettings.builder()
+                .requireProofKey(true)
+                .requireAuthorizationConsent(false)
+                .setting(ClientSettingNames.AUDIENCE, client.audience().name());
+        if (client.applicationCode() != null) {
+            settings.setting(ClientSettingNames.APPLICATION, client.applicationCode());
+        }
+        return settings.build();
     }
 
     private TokenSettings tokenSettings(ClientAudience audience) {

@@ -7,10 +7,14 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 import com.cherrycore.identity.infrastructure.web.AuthPaths;
@@ -48,6 +52,34 @@ public class BrowserSession {
     }
 
     /**
+     * Petición JSON a cualquier ruta de la API del frontend (con CSRF en los
+     * métodos que modifican).
+     */
+    public MvcResult call(HttpMethod method, String path, String json) throws Exception {
+        MockHttpServletRequestBuilder request = MockMvcRequestBuilders.request(method, path);
+        if (json != null) {
+            request.contentType(MediaType.APPLICATION_JSON).content(json);
+        }
+        if (!HttpMethod.GET.equals(method)) {
+            ensureCsrfCookie();
+            request.header(CsrfSettings.HEADER_NAME, cookies.get(CsrfSettings.COOKIE_NAME).getValue());
+        }
+        return perform(request);
+    }
+
+    public MvcResult get(String path) throws Exception {
+        return call(HttpMethod.GET, path, null);
+    }
+
+    public MvcResult upload(String path, String partName, byte[] content) throws Exception {
+        ensureCsrfCookie();
+        MockMultipartHttpServletRequestBuilder request = MockMvcRequestBuilders.multipart(HttpMethod.PUT, path)
+                .file(new MockMultipartFile(partName, "file.bin", MediaType.APPLICATION_OCTET_STREAM_VALUE, content))
+                .header(CsrfSettings.HEADER_NAME, cookies.get(CsrfSettings.COOKIE_NAME).getValue());
+        return perform(request);
+    }
+
+    /**
      * POST JSON sin cabecera CSRF (para comprobar que se rechaza).
      */
     public MvcResult postJsonWithoutCsrf(String path, String json) throws Exception {
@@ -78,7 +110,7 @@ public class BrowserSession {
         }
     }
 
-    private MvcResult perform(MockHttpServletRequestBuilder request) throws Exception {
+    private MvcResult perform(AbstractMockHttpServletRequestBuilder<?> request) throws Exception {
         if (!cookies.isEmpty()) {
             request.cookie(cookies.values().toArray(Cookie[]::new));
         }

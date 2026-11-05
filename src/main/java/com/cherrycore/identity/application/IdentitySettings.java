@@ -17,7 +17,8 @@ public record IdentitySettings(
         Duration emailVerificationTtl,
         Duration passwordResetTtl,
         Locale defaultLocale,
-        Set<Locale> supportedLocales
+        Set<Locale> supportedLocales,
+        String mfaIssuer
 ) {
 
     /**

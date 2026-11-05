@@ -27,6 +27,14 @@ public final class CurrentAccount {
         return parse(authentication.getName());
     }
 
+    /**
+     * Empresa con la que trabaja la persona de backoffice en esta sesión.
+     */
+    public static Optional<UUID> activeCompanyId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication == null ? Optional.empty() : AccountAuthorities.tenantOf(authentication.getAuthorities());
+    }
+
     private static Optional<UUID> parse(String name) {
         try {
             return Optional.of(UUID.fromString(name));

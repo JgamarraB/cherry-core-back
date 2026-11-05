@@ -21,31 +21,6 @@ public final class AuthDtos {
     private AuthDtos() {
     }
 
-    public record LoginRequest(
-            @NotBlank @Size(max = EmailAddress.MAX_LENGTH) String email,
-            @NotBlank @Size(max = MAX_PASSWORD_INPUT) String password
-    ) {
-
-        @Override
-        public String toString() {
-            return "LoginRequest[***]";
-        }
-    }
-
-    /**
-     * @param redirectUrl a dónde debe ir el navegador tras el login (la app que
-     *                    pidió el login), o {@code null} si entró directamente
-     */
-    public record LoginResponse(String redirectUrl) {
-    }
-
-    public record SessionResponse(boolean authenticated, String accountType) {
-
-        public static SessionResponse anonymous() {
-            return new SessionResponse(false, null);
-        }
-    }
-
     /**
      * Dónde leer el token CSRF (cookie) y en qué cabecera enviarlo.
      */

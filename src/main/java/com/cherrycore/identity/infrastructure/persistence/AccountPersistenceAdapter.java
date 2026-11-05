@@ -1,5 +1,6 @@
 package com.cherrycore.identity.infrastructure.persistence;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -10,6 +11,7 @@ import com.cherrycore.identity.application.port.AccountRepository;
 import com.cherrycore.identity.domain.Account;
 import com.cherrycore.identity.domain.AccountType;
 import com.cherrycore.identity.domain.EmailAddress;
+import com.cherrycore.identity.domain.PlatformRole;
 
 @Repository
 class AccountPersistenceAdapter implements AccountRepository {
@@ -41,6 +43,13 @@ class AccountPersistenceAdapter implements AccountRepository {
     }
 
     @Override
+    public List<Account> findSuperAdmins() {
+        return jpaRepository.findByPlatformRole(PlatformRole.SUPER_ADMIN).stream()
+                .map(AccountPersistenceAdapter::toDomain)
+                .toList();
+    }
+
+    @Override
     public void save(Account account) {
         AccountJpaEntity entity = jpaRepository.findById(account.id())
                 .orElseGet(() -> new AccountJpaEntity(account.id(), account.type(), account.email().value()));
@@ -52,7 +61,8 @@ class AccountPersistenceAdapter implements AccountRepository {
         entity.setLastLoginAt(account.lastLoginAt());
         entity.setPlatformRole(account.platformRole());
         entity.setLocale(account.locale().toLanguageTag());
-        jpaRepository.save(entity);
+        // Flush: la auditoría (SQL directo con FK a la cuenta) se inserta justo después.
+        jpaRepository.saveAndFlush(entity);
     }
 
     private static Account toDomain(AccountJpaEntity entity) {

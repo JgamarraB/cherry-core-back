@@ -20,7 +20,7 @@ public class Account {
     private int failedLoginAttempts;
     private Instant lockedUntil;
     private Instant lastLoginAt;
-    private final PlatformRole platformRole;
+    private PlatformRole platformRole;
     private Locale locale;
 
     private Account(UUID id, AccountType type, EmailAddress email, Instant emailVerifiedAt, String passwordHash,
@@ -45,6 +45,24 @@ public class Account {
     public static Account newCustomer(UUID id, EmailAddress email, String passwordHash, Locale locale) {
         return new Account(id, AccountType.CUSTOMER, email, null, Objects.requireNonNull(passwordHash),
                 AccountStatus.PENDING_VERIFICATION, 0, null, null, null, locale);
+    }
+
+    /**
+     * Nueva cuenta de backoffice que se registra sola: pendiente hasta verificar el email.
+     */
+    public static Account newStaff(UUID id, EmailAddress email, String passwordHash, Locale locale) {
+        return new Account(id, AccountType.STAFF, email, null, Objects.requireNonNull(passwordHash),
+                AccountStatus.PENDING_VERIFICATION, 0, null, null, null, locale);
+    }
+
+    /**
+     * Cuenta de backoffice creada al aceptar una invitación: el enlace llegó a
+     * su email, así que el email ya está verificado.
+     */
+    public static Account newInvitedStaff(UUID id, EmailAddress email, String passwordHash, Locale locale,
+            Instant now) {
+        return new Account(id, AccountType.STAFF, email, now, Objects.requireNonNull(passwordHash),
+                AccountStatus.ACTIVE, 0, null, null, null, locale);
     }
 
     public static Account restore(UUID id, AccountType type, EmailAddress email, Instant emailVerifiedAt,
@@ -118,6 +136,36 @@ public class Account {
         failedLoginAttempts = 0;
         lockedUntil = null;
         verifyEmail(now);
+    }
+
+    public void grantPlatformRole(PlatformRole role) {
+        if (type != AccountType.STAFF) {
+            throw new IllegalStateException("Platform roles are only for staff accounts");
+        }
+        platformRole = Objects.requireNonNull(role);
+    }
+
+    public boolean isSuperAdmin() {
+        return platformRole == PlatformRole.SUPER_ADMIN;
+    }
+
+    /**
+     * Desactivación por un superadmin: ya no puede entrar ni renovar tokens.
+     */
+    public void disable() {
+        status = AccountStatus.DISABLED;
+    }
+
+    /**
+     * Reactivación: vuelve a activa si tenía el email verificado, si no a pendiente.
+     */
+    public void reactivate() {
+        status = emailVerifiedAt == null ? AccountStatus.PENDING_VERIFICATION : AccountStatus.ACTIVE;
+    }
+
+    public void unlock() {
+        failedLoginAttempts = 0;
+        lockedUntil = null;
     }
 
     public void changeLocale(Locale newLocale) {

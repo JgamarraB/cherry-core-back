@@ -5,10 +5,6 @@ import com.cherrycore.shared.domain.error.ErrorCode;
 
 public enum CustomerErrorCode implements ErrorCode {
 
-    TERMS_NOT_ACCEPTED(ErrorCategory.INVALID_INPUT, "Terms and conditions must be accepted"),
-    INVALID_NAME(ErrorCategory.INVALID_INPUT, "Name is not valid"),
-    INVALID_PHONE(ErrorCategory.INVALID_INPUT, "Phone number must be in international format, e.g. +34600111222"),
-    INVALID_COUNTRY_CODE(ErrorCategory.INVALID_INPUT, "Country code must be ISO 3166-1 alpha-2, e.g. ES"),
     INVALID_ADDRESS(ErrorCategory.INVALID_INPUT, "Address is not valid"),
     CUSTOMER_NOT_FOUND(ErrorCategory.NOT_FOUND, "Customer not found"),
     ADDRESS_NOT_FOUND(ErrorCategory.NOT_FOUND, "Address not found"),

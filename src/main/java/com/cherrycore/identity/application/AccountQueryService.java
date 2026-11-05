@@ -1,5 +1,6 @@
 package com.cherrycore.identity.application;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -9,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.cherrycore.identity.application.port.AccountRepository;
 import com.cherrycore.identity.domain.Account;
+import com.cherrycore.identity.domain.AccountType;
+import com.cherrycore.identity.domain.EmailAddress;
 import com.cherrycore.identity.domain.IdentityErrorCode;
 import com.cherrycore.shared.domain.error.DomainException;
 
@@ -35,6 +38,21 @@ public class AccountQueryService {
     @Transactional(readOnly = true)
     public Account getActive(UUID accountId) {
         return findActive(accountId).orElseThrow(() -> new DomainException(IdentityErrorCode.ACCOUNT_NOT_FOUND));
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Account> findById(UUID accountId) {
+        return accountRepository.findById(accountId);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Account> findByTypeAndEmail(AccountType type, EmailAddress email) {
+        return accountRepository.findByTypeAndEmail(type, email);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Account> superAdmins() {
+        return accountRepository.findSuperAdmins().stream().filter(Account::isActive).toList();
     }
 
     @Transactional

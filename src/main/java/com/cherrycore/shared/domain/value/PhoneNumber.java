@@ -1,7 +1,8 @@
-package com.cherrycore.customer.domain;
+package com.cherrycore.shared.domain.value;
 
 import java.util.regex.Pattern;
 
+import com.cherrycore.shared.domain.error.CommonErrorCode;
 import com.cherrycore.shared.domain.error.DomainException;
 
 /**
@@ -15,7 +16,7 @@ public record PhoneNumber(String value) {
 
     public PhoneNumber {
         if (value == null || !E164.matcher(value).matches()) {
-            throw new DomainException(CustomerErrorCode.INVALID_PHONE);
+            throw new DomainException(CommonErrorCode.INVALID_PHONE);
         }
     }
 

@@ -24,6 +24,7 @@ public class IdentityConfig {
                 security.oneTimeTokens().emailVerificationTtl(),
                 security.oneTimeTokens().passwordResetTtl(),
                 properties.i18n().defaultLocale(),
-                properties.i18n().supportedLocales());
+                properties.i18n().supportedLocales(),
+                properties.branding().platformName());
     }
 }

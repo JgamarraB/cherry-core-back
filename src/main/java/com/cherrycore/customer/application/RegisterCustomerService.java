@@ -7,11 +7,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.cherrycore.customer.application.port.CustomerRepository;
 import com.cherrycore.customer.domain.Customer;
-import com.cherrycore.customer.domain.CustomerErrorCode;
-import com.cherrycore.customer.domain.PersonName;
-import com.cherrycore.customer.domain.PhoneNumber;
+import com.cherrycore.shared.domain.value.PersonName;
+import com.cherrycore.shared.domain.value.PhoneNumber;
 import com.cherrycore.identity.application.AccountRegistrationService;
 import com.cherrycore.identity.application.RequestContext;
+import com.cherrycore.shared.domain.error.CommonErrorCode;
 import com.cherrycore.shared.domain.error.DomainException;
 
 /**
@@ -39,7 +39,7 @@ public class RegisterCustomerService {
     @Transactional
     public void register(RegisterCustomerCommand command, RequestContext context) {
         if (!command.termsAccepted()) {
-            throw new DomainException(CustomerErrorCode.TERMS_NOT_ACCEPTED);
+            throw new DomainException(CommonErrorCode.TERMS_NOT_ACCEPTED);
         }
         // Se valida todo antes de crear nada.
         PersonName firstName = PersonName.of(command.firstName());

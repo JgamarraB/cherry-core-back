@@ -1,5 +1,6 @@
 package com.cherrycore.identity.application.port;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,6 +22,8 @@ public interface AccountRepository {
     Optional<Account> findByTypeAndEmailForUpdate(AccountType type, EmailAddress email);
 
     boolean existsByTypeAndEmail(AccountType type, EmailAddress email);
+
+    List<Account> findSuperAdmins();
 
     void save(Account account);
 }

@@ -1,4 +1,8 @@
-package com.cherrycore.customer.domain;
+package com.cherrycore.shared.domain.value;
+
+import com.cherrycore.shared.domain.value.PersonName;
+import com.cherrycore.shared.domain.value.PhoneNumber;
+import com.cherrycore.shared.domain.value.CountryCode;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -9,7 +13,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import com.cherrycore.shared.domain.error.DomainException;
 
-class CustomerValueObjectsTest {
+class ValueObjectsTest {
 
     @Test
     void phoneIsNormalizedToE164() {

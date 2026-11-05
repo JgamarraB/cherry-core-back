@@ -1,6 +1,8 @@
 package com.cherrycore.customer.domain;
 
+import com.cherrycore.shared.domain.error.CommonErrorCode;
 import com.cherrycore.shared.domain.error.DomainException;
+import com.cherrycore.shared.domain.value.CountryCode;
 
 /**
  * Datos de una dirección postal, validados.
@@ -26,7 +28,7 @@ public record PostalAddress(
         postalCode = required(postalCode, MAX_POSTAL_CODE_LENGTH);
         region = optional(region, MAX_REGION_LENGTH);
         if (country == null) {
-            throw new DomainException(CustomerErrorCode.INVALID_COUNTRY_CODE);
+            throw new DomainException(CommonErrorCode.INVALID_COUNTRY_CODE);
         }
     }
 
