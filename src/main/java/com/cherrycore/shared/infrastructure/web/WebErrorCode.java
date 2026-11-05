@@ -15,7 +15,8 @@ public enum WebErrorCode {
     INVALID_PARAMETER(HttpStatus.BAD_REQUEST, "Parameter has an invalid value"),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "Resource not found"),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed"),
-    UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Content type not supported");
+    UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Content type not supported"),
+    FILE_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE, "Uploaded file exceeds the allowed size");
 
     private final HttpStatus status;
     private final String description;

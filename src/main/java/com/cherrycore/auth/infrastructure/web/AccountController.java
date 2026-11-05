@@ -213,7 +213,7 @@ public class AccountController {
             phone = profile.phone() == null ? null : profile.phone().value();
         }
         return new AccountOverview(account.id(), account.type().name(), account.email().value(),
-                account.emailVerifiedAt() != null, account.locale().toLanguageTag(), firstName, lastName, phone,
+                account.emailVerifiedAt() != null, account.hasPassword(), account.locale().toLanguageTag(), firstName, lastName, phone,
                 account.isSuperAdmin(), mfa.status(account.id()));
     }
 

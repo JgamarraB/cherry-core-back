@@ -82,6 +82,14 @@ class CompanyManagementIntegrationTest {
     void membersOnlyDoWhatTheirRoleAllows() throws Exception {
         BrowserSession member = addMember("STAFF");
 
+        // El dueño lo puede todo; STAFF, nada por defecto (y así lo ve el frontend).
+        MvcResult ownerAccess = owner.session().get("/api/company/me");
+        assertThat(JsonBodies.<Boolean>read(ownerAccess, "$.data.owner")).isTrue();
+        assertThat(JsonBodies.<List<String>>read(ownerAccess, "$.data.permissions")).hasSize(5);
+        MvcResult memberAccess = member.get("/api/company/me");
+        assertThat(JsonBodies.<String>read(memberAccess, "$.data.roleCode")).isEqualTo("STAFF");
+        assertThat(JsonBodies.<List<String>>read(memberAccess, "$.data.permissions")).isEmpty();
+
         // STAFF no tiene permisos por defecto.
         MvcResult denied = member.get("/api/company/members");
         assertThat(denied.getResponse().getStatus()).isEqualTo(403);
@@ -94,6 +102,8 @@ class CompanyManagementIntegrationTest {
         assertThat(updated.getResponse().getStatus()).isEqualTo(200);
 
         assertThat(member.get("/api/company/members").getResponse().getStatus()).isEqualTo(200);
+        assertThat(JsonBodies.<List<String>>read(member.get("/api/company/me"), "$.data.permissions"))
+                .containsExactly("company.members.view");
         // Pero sigue sin poder invitar.
         MvcResult invite = member.call(HttpMethod.POST, "/api/company/invitations",
                 "{\"email\": \"x@example.com\", \"roleId\": \"" + roleId("STAFF") + "\"}");
@@ -155,6 +165,13 @@ class CompanyManagementIntegrationTest {
                 HttpRequest.newBuilder(URI.create(logoUrl)).build(), HttpResponse.BodyHandlers.ofByteArray());
         assertThat(download.statusCode()).isEqualTo(200);
         assertThat(download.body()).isEqualTo(PNG);
+    }
+
+    @Test
+    void myCompaniesShowTheRoleName() throws Exception {
+        MvcResult mine = owner.session().get("/api/account/companies");
+        assertThat(JsonBodies.<String>read(mine, "$.data[0].roleCode")).isEqualTo("OWNER");
+        assertThat(JsonBodies.<String>read(mine, "$.data[0].roleName")).isNotBlank();
     }
 
     @Test

@@ -21,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.cherrycore.company.application.AvailablePermissionsView;
 import com.cherrycore.company.application.CompanyApplicationView;
+import com.cherrycore.company.application.CompanyAccessPolicy;
 import com.cherrycore.company.application.CompanyApplicationsService;
 import com.cherrycore.company.application.CompanyMembersService;
 import com.cherrycore.company.application.CompanyProfileService;
@@ -28,6 +29,7 @@ import com.cherrycore.company.application.CompanyRolesService;
 import com.cherrycore.company.application.CompanyView;
 import com.cherrycore.company.application.InvitationView;
 import com.cherrycore.company.application.MemberView;
+import com.cherrycore.company.application.MyCompanyAccess;
 import com.cherrycore.company.application.RoleView;
 import com.cherrycore.company.application.StaffInvitationService;
 import com.cherrycore.company.infrastructure.web.CompanyDtos.ChangeRoleRequest;
@@ -56,14 +58,22 @@ public class CompanyController {
     private final CompanyRolesService roles;
     private final StaffInvitationService invitations;
     private final CompanyApplicationsService applications;
+    private final CompanyAccessPolicy access;
 
     public CompanyController(CompanyProfileService profile, CompanyMembersService members, CompanyRolesService roles,
-            StaffInvitationService invitations, CompanyApplicationsService applications) {
+            StaffInvitationService invitations, CompanyApplicationsService applications, CompanyAccessPolicy access) {
         this.profile = profile;
         this.members = members;
         this.roles = roles;
         this.invitations = invitations;
         this.applications = applications;
+        this.access = access;
+    }
+
+    /** Mi rol y mis permisos en la empresa activa. */
+    @GetMapping(CompanyPaths.ME)
+    public ApiSuccessResponse<MyCompanyAccess> me() {
+        return ApiSuccessResponse.of(access.myAccess(StaffActorResolver.current()));
     }
 
     @GetMapping

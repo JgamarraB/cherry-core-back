@@ -28,7 +28,7 @@ El login va por pasos. Cada respuesta trae `data.status` con el siguiente paso:
 | Método y ruta | Body | Respuesta |
 |---|---|---|
 | `GET /csrf` | — | cookie `XSRF-TOKEN` |
-| `GET /session` | — | `{authenticated, accountType, superAdmin, activeCompanyId, pendingStep}` |
+| `GET /session` | — | `{authenticated, accountId, accountType, superAdmin, activeCompanyId, pendingStep}` |
 | `POST /customers/login` · `POST /staff/login` | `{email, password}` | `{status, redirectUrl}` |
 | `POST /mfa/verify` | `{code}` | `{status, redirectUrl}` |
 | `POST /mfa/setup` | — | `{secret, otpauthUri}` → pintar `otpauthUri` como **QR** |
@@ -73,7 +73,7 @@ Errores de datos: `INVALID_EMAIL`, `PASSWORD_TOO_SHORT`, `PASSWORD_TOO_LONG`, `P
 
 | Método y ruta | Body | Respuesta |
 |---|---|---|
-| `GET /` | — | `{id, type, email, emailVerified, locale, firstName, lastName, phone, superAdmin, mfa:{enabled, required, recoveryCodesLeft}}` |
+| `GET /` | — | `{id, type, email, emailVerified, hasPassword, locale, firstName, lastName, phone, superAdmin, mfa:{enabled, required, recoveryCodesLeft}}` |
 | `PUT /profile` | `{firstName, lastName, phone?, locale?}` | igual que `GET /` |
 | `PUT /password` | `{currentPassword, newPassword}` | — (cierra el resto de sesiones) |
 | `POST /email` | `{currentPassword, newEmail}` | 202 (enlace al email nuevo) |
@@ -84,19 +84,22 @@ Errores de datos: `INVALID_EMAIL`, `PASSWORD_TOO_SHORT`, `PASSWORD_TOO_LONG`, `P
 | `POST /mfa/disable` | `{code}` | — (solo clientes) |
 | `POST /mfa/recovery-codes` | `{code}` | `{recoveryCodes}` nuevos |
 | `POST /delete` | `{currentPassword, mfaCode?}` | — (borra y cierra sesión) |
-| `GET /companies` | — | mis empresas en cualquier estado: `[{company, roleCode, membershipStatus}]` |
+| `GET /companies` | — | mis empresas en cualquier estado: `[{company, roleCode, roleName, membershipStatus}]` |
 | `POST /companies` | datos de empresa | registra otra empresa (pendiente de aprobación) |
+
+`hasPassword: false` (alta con login social): no se pide `currentPassword`; basta con haber entrado hace poco (si no, `REAUTHENTICATION_REQUIRED`).
 
 Errores: `WRONG_CURRENT_PASSWORD`, `EMAIL_UNCHANGED`, `EMAIL_ALREADY_IN_USE`, `MFA_REQUIRED_FOR_STAFF`, `MFA_ALREADY_ENABLED`, `SESSION_NOT_FOUND`, `SOLE_OWNER_CANNOT_LEAVE`.
 
 ## 5. Mi empresa (`/api/company`, backoffice con empresa elegida)
 
-Cada acción comprueba un permiso de CherryCore: `company.profile.manage`, `company.members.view`, `company.members.manage`, `company.roles.manage`, `company.applications.view`. Sin él → `COMPANY_PERMISSION_DENIED` (403).
+Solo se entra en empresas **activas** (las pendientes o rechazadas se ven en Mi cuenta → `GET /api/account/companies`). Cada acción comprueba un permiso de CherryCore: `company.profile.manage`, `company.members.view`, `company.members.manage`, `company.roles.manage`, `company.applications.view`. Sin él → `COMPANY_PERMISSION_DENIED` (403).
 
 | Método y ruta | Body | Permiso |
 |---|---|---|
+| `GET /me` | — | miembro → `{companyId, membershipId, roleCode, roleName, owner, permissions[]}` (para no enseñar lo que no puede hacer) |
 | `GET /` · `PUT /` | datos de empresa | miembro · `profile.manage` |
-| `PUT /logo` (multipart, campo `file`, ≤ 2 MB) · `DELETE /logo` | — | `profile.manage` |
+| `PUT /logo` (multipart, campo `file`, ≤ 2 MB; más grande → 413 `FILE_TOO_LARGE`) · `DELETE /logo` | — | `profile.manage` |
 | `GET /members` | — | `members.view` |
 | `PUT /members/{id}` | `{roleId}` | `members.manage` (+ OWNER para dar/quitar OWNER) |
 | `POST /members/{id}/suspend` · `/reactivate` · `DELETE /members/{id}` | — | `members.manage` |

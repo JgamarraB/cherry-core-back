@@ -1,5 +1,7 @@
 package com.cherrycore.company.application;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
@@ -53,6 +55,20 @@ public class CompanyAccessPolicy {
         CompanyRole role = roles.findById(membership.roleId())
                 .orElseThrow(() -> new DomainException(CompanyErrorCode.COMPANY_PERMISSION_DENIED));
         return new CompanyContext(company, membership, role);
+    }
+
+    /**
+     * Mi rol y mis permisos de CherryCore en la empresa activa.
+     */
+    public MyCompanyAccess myAccess(StaffActor actor) {
+        CompanyContext context = requireMember(actor);
+        List<String> granted = Arrays.stream(CompanyPermission.values())
+                .filter(permission -> context.isOwner()
+                        || context.role().permissionIds().contains(permissionId(permission)))
+                .map(CompanyPermission::code)
+                .toList();
+        return new MyCompanyAccess(context.company().id(), context.membership().id(), context.role().code().value(),
+                context.role().name(), context.isOwner(), granted);
     }
 
     public CompanyContext require(StaffActor actor, CompanyPermission permission) {

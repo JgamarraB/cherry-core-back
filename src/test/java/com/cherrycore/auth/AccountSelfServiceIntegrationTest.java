@@ -58,6 +58,10 @@ class AccountSelfServiceIntegrationTest {
         assertThat(JsonBodies.<String>read(overview, "$.data.type")).isEqualTo("CUSTOMER");
         assertThat(JsonBodies.<String>read(overview, "$.data.email")).isEqualTo(email);
         assertThat(JsonBodies.<Boolean>read(overview, "$.data.mfa.required")).isFalse();
+        assertThat(JsonBodies.<Boolean>read(overview, "$.data.hasPassword")).isTrue();
+        // La sesión dice quién soy (el frontend lo usa para marcar "tú" en los listados).
+        assertThat(JsonBodies.<String>read(session.get("/api/auth/session"), "$.data.accountId"))
+                .isEqualTo(JsonBodies.<String>read(overview, "$.data.id"));
 
         MvcResult updated = session.call(HttpMethod.PUT, "/api/account/profile",
                 "{\"firstName\": \"Eva\", \"lastName\": \"Sanz\", \"locale\": \"en\"}");

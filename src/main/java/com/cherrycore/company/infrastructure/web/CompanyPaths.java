@@ -7,6 +7,7 @@ public final class CompanyPaths {
 
     public static final String BASE = "/api/company";
     public static final String ALL = BASE + "/**";
+    public static final String ME = "/me";
     public static final String LOGO = "/logo";
     public static final String MEMBERS = "/members";
     public static final String MEMBER = "/members/{membershipId}";
