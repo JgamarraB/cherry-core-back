@@ -16,8 +16,10 @@ import io.minio.SetBucketPolicyArgs;
 public class StorageConfig {
 
     /*
-     * Solo es público lo que está bajo companies/{id}/public/. El resto del
-     * bucket es privado (para ficheros privados se usarán URLs firmadas).
+     * Solo es público lo que está bajo companies/{id}/public/ (logos de
+     * empresa) y applications/{id}/public/ (logos de las apps, que se ven en
+     * el login). El resto del bucket es privado (para ficheros privados se
+     * usarán URLs firmadas).
      */
     private static final String PUBLIC_READ_POLICY = """
             {
@@ -26,10 +28,18 @@ public class StorageConfig {
                 "Effect": "Allow",
                 "Principal": {"AWS": ["*"]},
                 "Action": ["s3:GetObject"],
-                "Resource": ["arn:aws:s3:::%s/companies/*/public/*"]
+                "Resource": [
+                  "arn:aws:s3:::%1$s/companies/*/public/*",
+                  "arn:aws:s3:::%1$s/applications/*/public/*"
+                ]
               }]
             }
             """;
+
+    /** Política de lectura pública del bucket (solo las carpetas public/). */
+    static String publicReadPolicy(String bucket) {
+        return PUBLIC_READ_POLICY.formatted(bucket);
+    }
 
     @Bean
     MinioClient minioClient(CherryCoreProperties properties) {
@@ -57,7 +67,7 @@ public class StorageConfig {
             }
             client.setBucketPolicy(SetBucketPolicyArgs.builder()
                     .bucket(bucket)
-                    .config(PUBLIC_READ_POLICY.formatted(bucket))
+                    .config(publicReadPolicy(bucket))
                     .build());
         };
     }
