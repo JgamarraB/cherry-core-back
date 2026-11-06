@@ -16,6 +16,7 @@ import com.cherrycore.identity.application.AccountLockoutService;
 import com.cherrycore.identity.application.AccountQueryService;
 import com.cherrycore.identity.application.AuthEventLogger;
 import com.cherrycore.identity.application.AuthenticatedAccount;
+import com.cherrycore.identity.application.KnownDeviceService;
 import com.cherrycore.identity.application.MfaEnrollment;
 import com.cherrycore.identity.application.MfaService;
 import com.cherrycore.identity.domain.Account;
@@ -48,12 +49,16 @@ public class LoginFlow {
     private final SessionLoginHandler session;
     private final AuthEventLogger eventLogger;
     private final AccountLockoutService lockout;
+    private final KnownDeviceService knownDevices;
+    private final DeviceCookie deviceCookie;
     private final Duration pendingLoginTtl;
     private final Clock clock;
 
     LoginFlow(MfaService mfa, AccountQueryService accounts, StaffTenantService tenants, SessionLoginHandler session,
-            AuthEventLogger eventLogger, AccountLockoutService lockout, CherryCoreProperties properties,
-            Clock clock) {
+            AuthEventLogger eventLogger, AccountLockoutService lockout, KnownDeviceService knownDevices,
+            DeviceCookie deviceCookie, CherryCoreProperties properties, Clock clock) {
+        this.knownDevices = knownDevices;
+        this.deviceCookie = deviceCookie;
         this.pendingLoginTtl = properties.security().loginProtection().pendingLoginTtl();
         this.clock = clock;
         this.lockout = lockout;
@@ -140,6 +145,11 @@ public class LoginFlow {
             boolean usedTotp, HttpServletRequest request, HttpServletResponse response) {
         session.establish(accountId, type, superAdmin, factor, usedTotp, request, response);
         eventLogger.log(AuthEventType.LOGIN_COMPLETED, accountId, RequestContextResolver.from(request));
+        // Con contraseña (y MFA) o social: todos los logins pasan por aquí.
+        if (knownDevices.enabled()) {
+            knownDevices.loginCompleted(accountId, deviceCookie.resolve(request, response),
+                    RequestContextResolver.from(request));
+        }
         if (type == AccountType.STAFF) {
             List<TenantOption> options = tenants.tenantsOf(accountId);
             if (options.size() == 1) {

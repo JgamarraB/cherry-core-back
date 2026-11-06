@@ -121,6 +121,7 @@ cherrycore:
     email-change-url: ${CHERRYCORE_FRONTEND_URL}/confirm-email-change
     admin-url: ${CHERRYCORE_FRONTEND_URL}/admin
     social-signup-url: ${CHERRYCORE_FRONTEND_URL}/register/complete
+    account-activity-url: ${CHERRYCORE_FRONTEND_URL}/account/activity
 
   legal:
     terms-version: "2026-11-05"
@@ -176,6 +177,12 @@ cherrycore:
       secure-cookie: true
       same-site: Lax
       timeout: 30m
+    # Aviso por email cuando se entra desde un navegador o dispositivo nuevo.
+    new-device-alert:
+      enabled: true
+      # Cookie con un id aleatorio del navegador (HttpOnly, SameSite=Lax).
+      cookie-name: CHERRYCORE_DEVICE
+      cookie-max-age: 400d
     rate-limit:
       enabled: true
       # Peticiones permitidas por IP y endpoint en cada periodo.

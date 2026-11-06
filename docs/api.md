@@ -89,6 +89,7 @@ Errores de datos: `INVALID_EMAIL`, `PASSWORD_TOO_SHORT`, `PASSWORD_TOO_LONG`, `P
 | `GET /companies` | — | mis empresas en cualquier estado: `[{company, roleCode, roleName, membershipStatus}]` |
 | `POST /companies` | datos de empresa | registra otra empresa (pendiente de aprobación) |
 | `POST /companies/{companyId}/leave` | — | salir de una empresa (backoffice); si era la activa, se quita de la sesión |
+| `GET /activity?page=&size=` | — | mis eventos de seguridad, del más reciente al más antiguo: `{items:[{type, occurredAt, ip, browser, os, byAdministrator, currentDevice}], page, size, totalItems, totalPages}`. Si lo hizo otra persona (admin, dueño de la empresa): `byAdministrator: true` y sin `ip`/`browser`/`os`. `currentDevice`: misma IP y navegador que esta petición. No incluye el paso intermedio `LOGIN_SUCCEEDED` |
 | `GET /export` | — | descarga JSON con mis datos (RGPD): `{exportedAt, account, customer, staff, sessions[], securityEvents[], federatedIdentities[]}`. Sin secretos; limitado por IP y auditado |
 
 `hasPassword: false` (alta con login social): no se pide `currentPassword`; basta con haber entrado hace poco (si no, `REAUTHENTICATION_REQUIRED`).
@@ -143,5 +144,6 @@ Errores: `CANNOT_MODIFY_OWN_ACCOUNT`, `LAST_SUPER_ADMIN`, `NOT_A_STAFF_ACCOUNT`,
 - `GET /api/account/export`: `securityEvents[].ip` / `userAgent` son `null` cuando la acción la hizo otra persona.
 - Los enlaces de email (`/password/reset`, `/email-change/confirm`) dan `INVALID_OR_EXPIRED_TOKEN` si la contraseña o el email cambiaron después de enviarlos.
 - Subir logo (empresa y app) → `400 IMAGE_DIMENSIONS_TOO_LARGE` (más de 4096 px de ancho o alto) o `400 IMAGE_UNREADABLE`. La imagen se guarda sin metadatos (EXIF/GPS).
+- **Dispositivo nuevo**: el login deja la cookie `CHERRYCORE_DEVICE` (HttpOnly, 400 días). Si una cuenta entra desde un navegador que no conocía, recibe un email (sin enlaces con token) y queda el evento `NEW_DEVICE_LOGIN`. El primer login de una cuenta no avisa.
 - Login: el paso del código caduca a los 10 min de poner la contraseña → `NO_PENDING_LOGIN` (volver a pedir la contraseña).
 - `POST/PUT /api/admin/clients`: en producción solo URIs https (`INVALID_REDIRECT_URI` para http://localhost o con usuario:contraseña).

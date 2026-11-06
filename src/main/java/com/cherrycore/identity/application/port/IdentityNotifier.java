@@ -1,7 +1,9 @@
 package com.cherrycore.identity.application.port;
 
+import java.time.Instant;
 import java.util.Locale;
 
+import com.cherrycore.identity.application.RequestContext;
 import com.cherrycore.identity.domain.Account;
 import com.cherrycore.identity.domain.EmailAddress;
 
@@ -41,4 +43,10 @@ public interface IdentityNotifier {
      * Confirmación de borrado al email que tenía la cuenta.
      */
     void accountDeleted(EmailAddress email, Locale locale);
+
+    /**
+     * Aviso de inicio de sesión desde un navegador o dispositivo nuevo: cuándo,
+     * desde qué dispositivo (aproximado) e IP. Sin enlaces con token.
+     */
+    void newDeviceLogin(Account account, Instant at, RequestContext context);
 }

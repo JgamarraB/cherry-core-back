@@ -24,6 +24,7 @@ accounts ─┬─ 1:1 ─ customers ─ 1:N ─ customer_addresses
           ├─ 1:1 ─ staff_users ─ 1:N ─ memberships ─ N:1 ─ companies
           ├─ 1:N ─ mfa_factors / mfa_recovery_codes └─ N:1 ─ company_roles ─ 1:N ─ company_role_permissions
           ├─ 1:N ─ federated_identities (Google, Apple)
+          ├─ 1:N ─ known_devices (navegadores conocidos)
           ├─ 1:N ─ one_time_tokens (verificar email, recuperar contraseña)
           └─ 1:N ─ auth_events (auditoría de seguridad)
 companies ─ 1:N ─ staff_invitations
@@ -57,6 +58,9 @@ applications ─ 1:N ─ application_permissions ─ N:M ─ company_roles
 
 ### `federated_identities` ✅ V8
 `account_id`, `provider` (`GOOGLE` / `APPLE`), `provider_subject` (id del usuario en Google/Apple), `email_at_link`. Único: `provider + provider_subject`.
+
+### `known_devices` ✅ V12
+`account_id`, `fingerprint_hash` (HMAC-SHA256 con `CHERRYCORE_HASH_KEY` de cuenta + id aleatorio de la cookie `CHERRYCORE_DEVICE`; nunca la cookie ni la IP), `first_seen_at`, `last_seen_at`. Único: `account_id + fingerprint_hash`. Si se entra desde uno que no está, se avisa por email (salvo el primero de la cuenta).
 
 ### `one_time_tokens` ✅ V2
 `account_id`, `purpose` (`EMAIL_VERIFICATION` / `PASSWORD_RESET` / `EMAIL_CHANGE`), `payload` (email nuevo, V7), `token_hash` (**nunca el token en claro**), `expires_at`, `used_at`.

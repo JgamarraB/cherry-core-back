@@ -30,6 +30,7 @@ cherrycore:
     email-change-url: http://localhost:4200/confirm-email-change
     admin-url: http://localhost:4200/admin
     social-signup-url: http://localhost:4200/register/complete
+    account-activity-url: http://localhost:4200/account/activity
   mail:
     from: no-reply@cherrycore.test
   security:

@@ -55,6 +55,9 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - Al pedir un cambio de email se avisa también al email actual. — 2026-11-06
 - Las acciones que pueden dejar la plataforma sin superadmin se serializan con un bloqueo de Postgres. — 2026-11-06
 
+- **Aviso de dispositivo nuevo**: al completar un login (contraseña + MFA, o social) desde un navegador que la cuenta no conocía, email con fecha, dispositivo aproximado e IP, y evento `NEW_DEVICE_LOGIN`. El navegador se reconoce por una cookie con id aleatorio (`CHERRYCORE_DEVICE`, HttpOnly, SameSite=Lax, 400 días); en la base de datos solo hay un HMAC de cuenta + id (tabla `known_devices`). No por IP: cambia demasiado. El primer dispositivo de la cuenta no avisa. Se apaga con `cherrycore.security.new-device-alert.enabled`. — 2026-11-06
+- **Actividad de seguridad** en Mi cuenta (`GET /api/account/activity`): mis eventos, con la misma regla que la exportación (si lo hizo otra persona, sin su IP ni navegador). — 2026-11-06
+
 ## D4 · CherryCore es nuestro Identity Provider — 2026-11-05
 
 - Se construye con **Spring Authorization Server** (OAuth2 / OpenID Connect).

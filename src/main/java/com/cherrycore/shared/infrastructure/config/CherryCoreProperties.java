@@ -7,6 +7,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.core.io.Resource;
 import org.springframework.util.unit.DataSize;
 import org.springframework.validation.annotation.Validated;
@@ -61,7 +62,8 @@ public record CherryCoreProperties(
             @NotNull URI invitationUrl,
             @NotNull URI emailChangeUrl,
             @NotNull URI adminUrl,
-            @NotNull URI socialSignupUrl
+            @NotNull URI socialSignupUrl,
+            @NotNull URI accountActivityUrl
     ) {
     }
 
@@ -118,7 +120,19 @@ public record CherryCoreProperties(
             @NotNull @Valid LoginProtection loginProtection,
             @NotNull @Valid OneTimeTokens oneTimeTokens,
             @NotNull @Valid RateLimit rateLimit,
-            @NotNull @Valid Session session
+            @NotNull @Valid Session session,
+            @DefaultValue @Valid NewDeviceAlert newDeviceAlert
+    ) {
+    }
+
+    /**
+     * Aviso de inicio de sesión desde un dispositivo nuevo. El navegador se
+     * reconoce por una cookie con un id aleatorio (nunca solo por la IP).
+     */
+    public record NewDeviceAlert(
+            @DefaultValue("true") boolean enabled,
+            @DefaultValue("CHERRYCORE_DEVICE") @NotBlank String cookieName,
+            @DefaultValue("400d") @NotNull Duration cookieMaxAge
     ) {
     }
 

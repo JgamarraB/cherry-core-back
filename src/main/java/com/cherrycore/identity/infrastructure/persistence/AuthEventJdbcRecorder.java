@@ -5,6 +5,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -13,6 +14,8 @@ import org.springframework.stereotype.Repository;
 import com.cherrycore.identity.application.port.AuthEventRecorder;
 import com.cherrycore.identity.domain.AuthEvent;
 import com.cherrycore.identity.domain.AuthEventType;
+import com.cherrycore.shared.application.PageQuery;
+import com.cherrycore.shared.application.PageResult;
 
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
@@ -36,6 +39,13 @@ class AuthEventJdbcRecorder implements AuthEventRecorder {
              ORDER BY occurred_at DESC
              LIMIT :limit
             """;
+
+    private static final String PAGE_WHERE = " WHERE account_id = :accountId AND type NOT IN (:excluded)";
+
+    private static final String PAGE_SQL = "SELECT id, account_id, type, ip, user_agent, occurred_at, details"
+            + " FROM auth_events" + PAGE_WHERE + " ORDER BY occurred_at DESC, id DESC LIMIT :size OFFSET :offset";
+
+    private static final String COUNT_SQL = "SELECT COUNT(*) FROM auth_events" + PAGE_WHERE;
 
     private static final TypeReference<Map<String, String>> DETAILS_TYPE = new TypeReference<>() {
     };
@@ -68,6 +78,26 @@ class AuthEventJdbcRecorder implements AuthEventRecorder {
                 .param("limit", limit)
                 .query(this::toEvent)
                 .list();
+    }
+
+    @Override
+    public PageResult<AuthEvent> findByAccount(UUID accountId, Set<AuthEventType> excluded, PageQuery page) {
+        // NOT IN () no es SQL válido: sin exclusiones, un valor que no es ningún tipo.
+        List<String> excludedTypes = excluded.isEmpty() ? List.of("")
+                : excluded.stream().map(Enum::name).toList();
+        long total = jdbcClient.sql(COUNT_SQL)
+                .param("accountId", accountId)
+                .param("excluded", excludedTypes)
+                .query(Long.class)
+                .single();
+        List<AuthEvent> items = jdbcClient.sql(PAGE_SQL)
+                .param("accountId", accountId)
+                .param("excluded", excludedTypes)
+                .param("size", page.size())
+                .param("offset", page.offset())
+                .query(this::toEvent)
+                .list();
+        return new PageResult<>(items, page.page(), page.size(), total);
     }
 
     private AuthEvent toEvent(ResultSet rs, int row) throws SQLException {
