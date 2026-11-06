@@ -25,11 +25,14 @@ cherrycore:
     email-change-url: http://localhost:4200/confirm-email-change
     admin-url: http://localhost:4200/admin
     social-signup-url: http://localhost:4200/register/complete
+    account-activity-url: http://localhost:4200/account/activity
   mail:
     from: no-reply@cherrycore.local
   security:
     # Clave SOLO de desarrollo/tests. Nunca usarla en producción.
     encryption-key: ZGV2LW9ubHktZW5jcnlwdGlvbi1rZXktMzItYnl0ZXM=
+    # Clave HMAC SOLO de desarrollo/tests. Nunca usarla en producción.
+    hash-key: ZGV2LW9ubHktaG1hYy1rZXktZm9yLXJlY292ZXJ5LWNvZGVz
     session:
       # En local no hay HTTPS.
       secure-cookie: false
@@ -46,6 +49,8 @@ cherrycore:
     # 4200 = frontend de login (Angular), 4321 = web Astro.
     allowed-origins: http://localhost:4200,http://localhost:4321
   oauth:
+    # Apps de desarrollo con redirect http://localhost.
+    allow-insecure-redirect-uris: true
     clients:
       # Backend de Lirgar Mobility actuando como BFF de su web.
       - client-id: lirgar-web

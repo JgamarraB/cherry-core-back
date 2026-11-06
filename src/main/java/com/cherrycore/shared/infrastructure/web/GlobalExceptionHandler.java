@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.cherrycore.shared.domain.error.CommonErrorCode;
@@ -93,6 +94,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ApiErrorResponse> handleMethodNotAllowed() {
         return respond(WebErrorCode.METHOD_NOT_ALLOWED);
+    }
+
+    /** Fichero por encima de spring.servlet.multipart.max-file-size (p. ej. un logo de más de 2 MB). */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiErrorResponse> handleFileTooLarge() {
+        return respond(WebErrorCode.FILE_TOO_LARGE);
     }
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)

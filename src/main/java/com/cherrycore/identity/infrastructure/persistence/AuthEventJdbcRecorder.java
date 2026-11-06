@@ -1,29 +1,61 @@
 package com.cherrycore.identity.infrastructure.persistence;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import com.cherrycore.identity.application.port.AuthEventRecorder;
 import com.cherrycore.identity.domain.AuthEvent;
+import com.cherrycore.identity.domain.AuthEventType;
+import com.cherrycore.shared.application.PageQuery;
+import com.cherrycore.shared.application.PageResult;
+
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Inserta eventos de auditoría con SQL directo: es solo inserción, no
- * necesita entidad JPA.
+ * necesita entidad JPA. El contexto ({@code details}) se guarda como JSONB.
  */
 @Repository
 class AuthEventJdbcRecorder implements AuthEventRecorder {
 
     private static final String INSERT_SQL = """
-            INSERT INTO auth_events (id, account_id, type, ip, user_agent, occurred_at)
-            VALUES (:id, :accountId, :type, :ip, :userAgent, :occurredAt)
+            INSERT INTO auth_events (id, account_id, type, ip, user_agent, occurred_at, details)
+            VALUES (:id, :accountId, :type, :ip, :userAgent, :occurredAt, CAST(:details AS JSONB))
             """;
 
-    private final JdbcClient jdbcClient;
+    private static final String RECENT_SQL = """
+            SELECT id, account_id, type, ip, user_agent, occurred_at, details
+              FROM auth_events
+             WHERE account_id = :accountId
+             ORDER BY occurred_at DESC
+             LIMIT :limit
+            """;
 
-    AuthEventJdbcRecorder(JdbcClient jdbcClient) {
+    private static final String PAGE_WHERE = " WHERE account_id = :accountId AND type NOT IN (:excluded)";
+
+    private static final String PAGE_SQL = "SELECT id, account_id, type, ip, user_agent, occurred_at, details"
+            + " FROM auth_events" + PAGE_WHERE + " ORDER BY occurred_at DESC, id DESC LIMIT :size OFFSET :offset";
+
+    private static final String COUNT_SQL = "SELECT COUNT(*) FROM auth_events" + PAGE_WHERE;
+
+    private static final TypeReference<Map<String, String>> DETAILS_TYPE = new TypeReference<>() {
+    };
+
+    private final JdbcClient jdbcClient;
+    private final JsonMapper jsonMapper;
+
+    AuthEventJdbcRecorder(JdbcClient jdbcClient, JsonMapper jsonMapper) {
         this.jdbcClient = jdbcClient;
+        this.jsonMapper = jsonMapper;
     }
 
     @Override
@@ -35,6 +67,44 @@ class AuthEventJdbcRecorder implements AuthEventRecorder {
                 .param("ip", event.ip())
                 .param("userAgent", event.userAgent())
                 .param("occurredAt", Timestamp.from(event.occurredAt()))
+                .param("details", event.details().isEmpty() ? null : jsonMapper.writeValueAsString(event.details()))
                 .update();
+    }
+
+    @Override
+    public List<AuthEvent> findRecentByAccount(UUID accountId, int limit) {
+        return jdbcClient.sql(RECENT_SQL)
+                .param("accountId", accountId)
+                .param("limit", limit)
+                .query(this::toEvent)
+                .list();
+    }
+
+    @Override
+    public PageResult<AuthEvent> findByAccount(UUID accountId, Set<AuthEventType> excluded, PageQuery page) {
+        // NOT IN () no es SQL válido: sin exclusiones, un valor que no es ningún tipo.
+        List<String> excludedTypes = excluded.isEmpty() ? List.of("")
+                : excluded.stream().map(Enum::name).toList();
+        long total = jdbcClient.sql(COUNT_SQL)
+                .param("accountId", accountId)
+                .param("excluded", excludedTypes)
+                .query(Long.class)
+                .single();
+        List<AuthEvent> items = jdbcClient.sql(PAGE_SQL)
+                .param("accountId", accountId)
+                .param("excluded", excludedTypes)
+                .param("size", page.size())
+                .param("offset", page.offset())
+                .query(this::toEvent)
+                .list();
+        return new PageResult<>(items, page.page(), page.size(), total);
+    }
+
+    private AuthEvent toEvent(ResultSet rs, int row) throws SQLException {
+        String details = rs.getString("details");
+        return new AuthEvent(rs.getObject("id", UUID.class), rs.getObject("account_id", UUID.class),
+                AuthEventType.valueOf(rs.getString("type")), rs.getString("ip"), rs.getString("user_agent"),
+                rs.getTimestamp("occurred_at").toInstant(),
+                details == null ? Map.of() : jsonMapper.readValue(details, DETAILS_TYPE));
     }
 }

@@ -31,6 +31,12 @@ public final class AuthDtos {
     }
 
     public record TokenRequest(@NotBlank @Size(max = MAX_TOKEN_INPUT) String token) {
+
+        /* El token de un enlace de email nunca debe acabar en un log. */
+        @Override
+        public String toString() {
+            return "TokenRequest[***]";
+        }
     }
 
     public record ResetPasswordRequest(

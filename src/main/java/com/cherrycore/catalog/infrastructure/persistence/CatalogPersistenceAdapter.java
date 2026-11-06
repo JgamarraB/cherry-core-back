@@ -60,6 +60,7 @@ class CatalogPersistenceAdapter implements ApplicationRepository, PermissionRepo
                 .orElseGet(() -> new ApplicationJpaEntity(application.id(), application.code().value()));
         entity.setName(application.name());
         entity.setStatus(application.status());
+        entity.setLogoKey(application.logoKey());
         applications.save(entity);
     }
 
@@ -105,7 +106,7 @@ class CatalogPersistenceAdapter implements ApplicationRepository, PermissionRepo
 
     private static Application toDomain(ApplicationJpaEntity entity) {
         return new Application(entity.getId(), new ApplicationCode(entity.getCode()), entity.getName(),
-                entity.getStatus());
+                entity.getStatus(), entity.getLogoKey());
     }
 
     private static ApplicationPermission toDomain(ApplicationPermissionJpaEntity entity) {

@@ -17,6 +17,9 @@ import com.cherrycore.company.domain.CompanyErrorCode;
 import com.cherrycore.company.domain.Membership;
 import com.cherrycore.company.domain.SystemRole;
 import com.cherrycore.identity.application.AccountQueryService;
+import com.cherrycore.identity.application.RequestContext;
+import com.cherrycore.identity.domain.AuditDetail;
+import com.cherrycore.identity.domain.AuthEventType;
 import com.cherrycore.shared.domain.error.DomainException;
 
 /**
@@ -30,49 +33,57 @@ public class CompanyReviewService {
     private final MembershipRepository memberships;
     private final AccountQueryService accounts;
     private final CompanyNotifier notifier;
+    private final CompanyAudit audit;
     private final Clock clock;
 
     public CompanyReviewService(CompanyRepository companies, CompanyRoleRepository roles,
-            MembershipRepository memberships, AccountQueryService accounts, CompanyNotifier notifier, Clock clock) {
+            MembershipRepository memberships, AccountQueryService accounts, CompanyNotifier notifier,
+            CompanyAudit audit, Clock clock) {
         this.companies = companies;
         this.roles = roles;
         this.memberships = memberships;
         this.accounts = accounts;
         this.notifier = notifier;
+        this.audit = audit;
         this.clock = clock;
     }
 
     @Transactional
-    public Company approve(UUID reviewerId, UUID companyId) {
+    public Company approve(UUID reviewerId, UUID companyId, RequestContext request) {
         Company company = find(companyId);
         company.approve(reviewerId, clock.instant());
         companies.save(company);
+        audit.event(AuthEventType.COMPANY_APPROVED, reviewerId, company).log(request);
         notifier.companyApproved(company, owners(company));
         return company;
     }
 
     @Transactional
-    public Company reject(UUID reviewerId, UUID companyId, String reason) {
+    public Company reject(UUID reviewerId, UUID companyId, String reason, RequestContext request) {
         Company company = find(companyId);
         company.reject(reviewerId, clock.instant(), reason);
         companies.save(company);
+        audit.event(AuthEventType.COMPANY_REJECTED, reviewerId, company)
+                .detail(AuditDetail.REASON, company.rejectionReason()).log(request);
         notifier.companyRejected(company, owners(company));
         return company;
     }
 
     @Transactional
-    public Company suspend(UUID companyId) {
+    public Company suspend(UUID adminId, UUID companyId, RequestContext request) {
         Company company = find(companyId);
         company.suspend();
         companies.save(company);
+        audit.event(AuthEventType.COMPANY_SUSPENDED, adminId, company).log(request);
         return company;
     }
 
     @Transactional
-    public Company reactivate(UUID companyId) {
+    public Company reactivate(UUID adminId, UUID companyId, RequestContext request) {
         Company company = find(companyId);
         company.reactivate();
         companies.save(company);
+        audit.event(AuthEventType.COMPANY_REACTIVATED, adminId, company).log(request);
         return company;
     }
 

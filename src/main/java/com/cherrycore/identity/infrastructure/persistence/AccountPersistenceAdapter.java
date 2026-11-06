@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import com.cherrycore.identity.application.port.AccountRepository;
@@ -18,12 +19,24 @@ import com.cherrycore.shared.infrastructure.security.CurrentAccount;
 @Repository
 class AccountPersistenceAdapter implements AccountRepository {
 
+    /* Bloqueo "advisory" de Postgres: se libera solo al terminar la transacción. */
+    private static final String LOCK_SUPER_ADMINS_SQL = "SELECT pg_advisory_xact_lock(:key)";
+    /* Número fijo que identifica este bloqueo en toda la base de datos. */
+    private static final long SUPER_ADMINS_LOCK_KEY = 0x43686572_72790001L;
+
     private final AccountJpaRepository jpaRepository;
+    private final JdbcClient jdbc;
     private final Clock clock;
 
-    AccountPersistenceAdapter(AccountJpaRepository jpaRepository, Clock clock) {
+    AccountPersistenceAdapter(AccountJpaRepository jpaRepository, JdbcClient jdbc, Clock clock) {
         this.jpaRepository = jpaRepository;
+        this.jdbc = jdbc;
         this.clock = clock;
+    }
+
+    @Override
+    public void lockSuperAdmins() {
+        jdbc.sql(LOCK_SUPER_ADMINS_SQL).param("key", SUPER_ADMINS_LOCK_KEY).query().listOfRows();
     }
 
     @Override

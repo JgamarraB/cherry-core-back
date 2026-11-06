@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import com.cherrycore.company.application.CompanyReviewService;
 import com.cherrycore.identity.infrastructure.web.AuthPaths;
+import com.cherrycore.shared.domain.media.ImageType;
 import com.cherrycore.support.BrowserSession;
 import com.cherrycore.support.CapturingEmailSender;
 import com.cherrycore.support.CustomerFixtures;
@@ -25,13 +26,15 @@ import com.cherrycore.support.IntegrationTest;
 import com.cherrycore.support.JsonBodies;
 import com.cherrycore.support.StaffFixtures;
 import com.cherrycore.support.StaffFixtures.Owner;
+import com.cherrycore.support.TestImages;
 import com.cherrycore.support.TotpCodes;
 
 @IntegrationTest
 class CompanyManagementIntegrationTest {
 
     private static final String INVITATION_SUBJECT_ES = "Te han invitado a unirte a un equipo";
-    private static final byte[] PNG = {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0};
+    private static final String GPS = "GPSLatitude=40.4168";
+    private static final byte[] PNG = TestImages.pngWithText(GPS);
 
     @Autowired
     private MockMvc mockMvc;
@@ -82,6 +85,14 @@ class CompanyManagementIntegrationTest {
     void membersOnlyDoWhatTheirRoleAllows() throws Exception {
         BrowserSession member = addMember("STAFF");
 
+        // El dueño lo puede todo; STAFF, nada por defecto (y así lo ve el frontend).
+        MvcResult ownerAccess = owner.session().get("/api/company/me");
+        assertThat(JsonBodies.<Boolean>read(ownerAccess, "$.data.owner")).isTrue();
+        assertThat(JsonBodies.<List<String>>read(ownerAccess, "$.data.permissions")).hasSize(5);
+        MvcResult memberAccess = member.get("/api/company/me");
+        assertThat(JsonBodies.<String>read(memberAccess, "$.data.roleCode")).isEqualTo("STAFF");
+        assertThat(JsonBodies.<List<String>>read(memberAccess, "$.data.permissions")).isEmpty();
+
         // STAFF no tiene permisos por defecto.
         MvcResult denied = member.get("/api/company/members");
         assertThat(denied.getResponse().getStatus()).isEqualTo(403);
@@ -94,6 +105,8 @@ class CompanyManagementIntegrationTest {
         assertThat(updated.getResponse().getStatus()).isEqualTo(200);
 
         assertThat(member.get("/api/company/members").getResponse().getStatus()).isEqualTo(200);
+        assertThat(JsonBodies.<List<String>>read(member.get("/api/company/me"), "$.data.permissions"))
+                .containsExactly("company.members.view");
         // Pero sigue sin poder invitar.
         MvcResult invite = member.call(HttpMethod.POST, "/api/company/invitations",
                 "{\"email\": \"x@example.com\", \"roleId\": \"" + roleId("STAFF") + "\"}");
@@ -118,6 +131,55 @@ class CompanyManagementIntegrationTest {
         MvcResult renameSystem = owner.session().call(HttpMethod.PUT, "/api/company/roles/" + roleId("ADMIN"),
                 "{\"name\": \"Jefe\", \"permissionIds\": []}");
         assertThat(JsonBodies.<String>read(renameSystem, "$.error.code")).isEqualTo("SYSTEM_ROLE_IMMUTABLE");
+    }
+
+    /*
+     * Escalada dentro de la empresa: con "gestionar miembros" alguien podía
+     * darse a sí mismo (o a otra cuenta suya, invitándola) el rol ADMIN; con
+     * "gestionar roles", añadir a su propio rol cualquier permiso. Quien no es
+     * OWNER solo puede dar permisos que ya tiene.
+     */
+    @Test
+    void membersManagerCannotGrantMoreThanTheyHave() throws Exception {
+        createRole("MANAGER", permissionId("company.members.view"), permissionId("company.members.manage"));
+        BrowserSession manager = addMember("MANAGER");
+        String ownMembership = JsonBodies.read(manager.get("/api/company/me"), "$.data.membershipId");
+
+        MvcResult selfPromotion = manager.call(HttpMethod.PUT, "/api/company/members/" + ownMembership,
+                "{\"roleId\": \"" + roleId("ADMIN") + "\"}");
+        assertThat(selfPromotion.getResponse().getStatus()).isEqualTo(403);
+        assertThat(JsonBodies.<String>read(selfPromotion, "$.error.code")).isEqualTo("ROLE_ABOVE_OWN_PERMISSIONS");
+        assertThat(JsonBodies.<String>read(manager.get("/api/company/me"), "$.data.roleCode")).isEqualTo("MANAGER");
+
+        MvcResult inviteAdmin = manager.call(HttpMethod.POST, "/api/company/invitations",
+                "{\"email\": \"" + CustomerFixtures.uniqueEmail() + "\", \"roleId\": \"" + roleId("ADMIN") + "\"}");
+        assertThat(JsonBodies.<String>read(inviteAdmin, "$.error.code")).isEqualTo("ROLE_ABOVE_OWN_PERMISSIONS");
+
+        // Lo que sí tiene lo puede dar.
+        MvcResult inviteStaff = manager.call(HttpMethod.POST, "/api/company/invitations",
+                "{\"email\": \"" + CustomerFixtures.uniqueEmail() + "\", \"roleId\": \"" + roleId("STAFF") + "\"}");
+        assertThat(inviteStaff.getResponse().getStatus()).isEqualTo(201);
+    }
+
+    @Test
+    void rolesManagerCannotAddPermissionsTheyDoNotHave() throws Exception {
+        String rolesManage = permissionId("company.roles.manage");
+        String roleId = createRole("ROLE_EDITOR", rolesManage);
+        BrowserSession editor = addMember("ROLE_EDITOR");
+
+        MvcResult escalate = editor.call(HttpMethod.PUT, "/api/company/roles/" + roleId,
+                "{\"permissionIds\": [\"" + rolesManage + "\", \"" + permissionId("company.members.manage") + "\"]}");
+        assertThat(JsonBodies.<String>read(escalate, "$.error.code")).isEqualTo("ROLE_ABOVE_OWN_PERMISSIONS");
+
+        MvcResult newRole = editor.call(HttpMethod.POST, "/api/company/roles",
+                "{\"code\": \"SUPER\", \"name\": \"Super\", \"permissionIds\": [\""
+                        + permissionId("company.profile.manage") + "\"]}");
+        assertThat(JsonBodies.<String>read(newRole, "$.error.code")).isEqualTo("ROLE_ABOVE_OWN_PERMISSIONS");
+
+        // Quitar permisos o crear roles con los suyos sí puede.
+        assertThat(editor.call(HttpMethod.POST, "/api/company/roles",
+                "{\"code\": \"HELPER\", \"name\": \"Ayudante\", \"permissionIds\": [\"" + rolesManage + "\"]}")
+                .getResponse().getStatus()).isEqualTo(201);
     }
 
     @Test
@@ -154,7 +216,19 @@ class CompanyManagementIntegrationTest {
         HttpResponse<byte[]> download = HttpClient.newHttpClient().send(
                 HttpRequest.newBuilder(URI.create(logoUrl)).build(), HttpResponse.BodyHandlers.ofByteArray());
         assertThat(download.statusCode()).isEqualTo(200);
-        assertThat(download.body()).isEqualTo(PNG);
+        // Se publica la imagen re-codificada: sin metadatos (EXIF, GPS, comentarios...).
+        assertThat(ImageType.detect(download.body())).contains(ImageType.PNG);
+        assertThat(TestImages.contains(download.body(), GPS)).isFalse();
+
+        MvcResult bomb = owner.session().upload("/api/company/logo", "file", TestImages.png(8000, 1));
+        assertThat(JsonBodies.<String>read(bomb, "$.error.code")).isEqualTo("IMAGE_DIMENSIONS_TOO_LARGE");
+    }
+
+    @Test
+    void myCompaniesShowTheRoleName() throws Exception {
+        MvcResult mine = owner.session().get("/api/account/companies");
+        assertThat(JsonBodies.<String>read(mine, "$.data[0].roleCode")).isEqualTo("OWNER");
+        assertThat(JsonBodies.<String>read(mine, "$.data[0].roleName")).isNotBlank();
     }
 
     @Test
@@ -182,6 +256,14 @@ class CompanyManagementIntegrationTest {
         String secret = JsonBodies.read(member.postJson(AuthPaths.MFA_SETUP, "{}"), "$.data.secret");
         member.postJson(AuthPaths.MFA_SETUP_CONFIRM, "{\"code\": \"" + TotpCodes.code(secret, 0) + "\"}");
         return member;
+    }
+
+    private String createRole(String code, String... permissionIds) throws Exception {
+        String ids = String.join("\", \"", permissionIds);
+        MvcResult created = owner.session().call(HttpMethod.POST, "/api/company/roles",
+                "{\"code\": \"" + code + "\", \"name\": \"" + code + "\", \"permissionIds\": [\"" + ids + "\"]}");
+        assertThat(created.getResponse().getStatus()).isEqualTo(201);
+        return JsonBodies.read(created, "$.data.id");
     }
 
     private String roleId(String code) throws Exception {

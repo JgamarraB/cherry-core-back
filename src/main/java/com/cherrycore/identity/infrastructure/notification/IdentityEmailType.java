@@ -13,7 +13,9 @@ enum IdentityEmailType {
     PASSWORD_CHANGED("email.password-changed"),
     EMAIL_CHANGE("email.email-change"),
     EMAIL_CHANGED("email.email-changed"),
-    ACCOUNT_DELETED("email.account-deleted");
+    EMAIL_CHANGE_REQUESTED("email.email-change-requested"),
+    ACCOUNT_DELETED("email.account-deleted"),
+    NEW_DEVICE_LOGIN("email.new-device");
 
     private final String key;
 

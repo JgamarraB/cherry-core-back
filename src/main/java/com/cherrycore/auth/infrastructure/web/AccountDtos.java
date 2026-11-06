@@ -22,12 +22,16 @@ public final class AccountDtos {
 
     /**
      * Mi cuenta: datos comunes + perfil según el tipo.
+     *
+     * @param hasPassword false en cuentas creadas con login social: no se les pide
+     *                    la contraseña actual (basta con haber entrado hace poco)
      */
     public record AccountOverview(
             UUID id,
             String type,
             String email,
             boolean emailVerified,
+            boolean hasPassword,
             String locale,
             String firstName,
             String lastName,
@@ -75,6 +79,19 @@ public final class AccountDtos {
         @Override
         public String toString() {
             return "DeleteAccountRequest[***]";
+        }
+    }
+
+    /**
+     * @param currentPassword obligatoria si la cuenta tiene contraseña
+     */
+    public record MfaSetupRequest(
+            @Size(max = AuthDtos.MAX_PASSWORD_INPUT) String currentPassword
+    ) {
+
+        @Override
+        public String toString() {
+            return "MfaSetupRequest[***]";
         }
     }
 

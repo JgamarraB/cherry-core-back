@@ -1,5 +1,6 @@
 package com.cherrycore.admin.infrastructure.web;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
@@ -7,6 +8,7 @@ import java.util.UUID;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.cherrycore.admin.application.AdminService;
 import com.cherrycore.admin.application.AuditEventView;
@@ -52,6 +55,7 @@ public class AdminCatalogController {
     private static final int MAX_CLIENT_ID = 100;
     private static final int MAX_URIS = 20;
     private static final int MAX_URI_LENGTH = 500;
+    private static final String LOGO_PART = "file";
 
     private final AdminService admin;
     private final CatalogService catalog;
@@ -84,19 +88,34 @@ public class AdminCatalogController {
 
     @GetMapping(AdminPaths.APPLICATIONS)
     public ApiSuccessResponse<List<ApplicationView>> applications() {
-        return ApiSuccessResponse.of(catalog.listApplications().stream().map(ApplicationView::of).toList());
+        return ApiSuccessResponse.of(catalog.listApplications().stream().map(this::view).toList());
     }
 
     @PostMapping(AdminPaths.APPLICATIONS)
     @ResponseStatus(HttpStatus.CREATED)
     public ApiSuccessResponse<ApplicationView> createApplication(@Valid @RequestBody ApplicationRequest body) {
-        return ApiSuccessResponse.of(ApplicationView.of(catalog.create(body.code(), body.name())));
+        return ApiSuccessResponse.of(view(catalog.create(body.code(), body.name())));
     }
 
     @PutMapping(AdminPaths.APPLICATIONS + "/{applicationId}")
     public ApiSuccessResponse<ApplicationView> updateApplication(@PathVariable UUID applicationId,
             @Valid @RequestBody UpdateApplicationRequest body) {
-        return ApiSuccessResponse.of(ApplicationView.of(catalog.update(applicationId, body.name(), body.active())));
+        return ApiSuccessResponse.of(view(catalog.update(applicationId, body.name(), body.active())));
+    }
+
+    /**
+     * Logo de la app (se muestra en el login). Multipart, campo {@code file}, máx. 2 MB;
+     * PNG, JPEG o WEBP comprobado por el contenido.
+     */
+    @PutMapping(path = AdminPaths.APPLICATION_LOGO, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiSuccessResponse<ApplicationView> uploadLogo(@PathVariable UUID applicationId,
+            @RequestParam(LOGO_PART) MultipartFile file) throws IOException {
+        return ApiSuccessResponse.of(view(catalog.uploadLogo(applicationId, file.getBytes())));
+    }
+
+    @DeleteMapping(AdminPaths.APPLICATION_LOGO)
+    public ApiSuccessResponse<ApplicationView> removeLogo(@PathVariable UUID applicationId) {
+        return ApiSuccessResponse.of(view(catalog.removeLogo(applicationId)));
     }
 
     @GetMapping(AdminPaths.APPLICATIONS + "/{applicationId}/permissions")
@@ -143,12 +162,15 @@ public class AdminCatalogController {
         return ApiSuccessResponse.of(null);
     }
 
-    public record ApplicationView(UUID id, String code, String name, boolean active) {
+    private ApplicationView view(Application application) {
+        return new ApplicationView(application.id(), application.code().value(), application.name(),
+                application.isActive(), catalog.logoUrlOf(application));
+    }
 
-        static ApplicationView of(Application application) {
-            return new ApplicationView(application.id(), application.code().value(), application.name(),
-                    application.isActive());
-        }
+    /**
+     * @param logoUrl URL pública del logo, o {@code null}
+     */
+    public record ApplicationView(UUID id, String code, String name, boolean active, String logoUrl) {
     }
 
     public record PermissionView(UUID id, String code, String description) {

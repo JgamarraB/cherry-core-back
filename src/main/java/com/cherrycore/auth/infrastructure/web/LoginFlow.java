@@ -1,5 +1,7 @@
 package com.cherrycore.auth.infrastructure.web;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
@@ -14,6 +16,7 @@ import com.cherrycore.identity.application.AccountLockoutService;
 import com.cherrycore.identity.application.AccountQueryService;
 import com.cherrycore.identity.application.AuthEventLogger;
 import com.cherrycore.identity.application.AuthenticatedAccount;
+import com.cherrycore.identity.application.KnownDeviceService;
 import com.cherrycore.identity.application.MfaEnrollment;
 import com.cherrycore.identity.application.MfaService;
 import com.cherrycore.identity.domain.Account;
@@ -22,6 +25,7 @@ import com.cherrycore.identity.domain.AuthEventType;
 import com.cherrycore.identity.domain.IdentityErrorCode;
 import com.cherrycore.identity.infrastructure.web.RequestContextResolver;
 import com.cherrycore.shared.domain.error.DomainException;
+import com.cherrycore.shared.infrastructure.config.CherryCoreProperties;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -45,9 +49,18 @@ public class LoginFlow {
     private final SessionLoginHandler session;
     private final AuthEventLogger eventLogger;
     private final AccountLockoutService lockout;
+    private final KnownDeviceService knownDevices;
+    private final DeviceCookie deviceCookie;
+    private final Duration pendingLoginTtl;
+    private final Clock clock;
 
     LoginFlow(MfaService mfa, AccountQueryService accounts, StaffTenantService tenants, SessionLoginHandler session,
-            AuthEventLogger eventLogger, AccountLockoutService lockout) {
+            AuthEventLogger eventLogger, AccountLockoutService lockout, KnownDeviceService knownDevices,
+            DeviceCookie deviceCookie, CherryCoreProperties properties, Clock clock) {
+        this.knownDevices = knownDevices;
+        this.deviceCookie = deviceCookie;
+        this.pendingLoginTtl = properties.security().loginProtection().pendingLoginTtl();
+        this.clock = clock;
         this.lockout = lockout;
         this.mfa = mfa;
         this.accounts = accounts;
@@ -70,7 +83,7 @@ public class LoginFlow {
             return finish(account.id(), account.type(), account.isSuperAdmin(), factor, false, request, response);
         }
         request.getSession().setAttribute(PendingLogin.SESSION_ATTRIBUTE,
-                new PendingLogin(account.id(), account.type(), account.isSuperAdmin(), factor, 0));
+                new PendingLogin(account.id(), account.type(), account.isSuperAdmin(), factor, 0, clock.instant()));
         return new LoginResponse(enabled ? LoginStatus.MFA_REQUIRED : LoginStatus.MFA_SETUP_REQUIRED, null);
     }
 
@@ -88,9 +101,10 @@ public class LoginFlow {
             }
             throw new DomainException(IdentityErrorCode.INVALID_MFA_CODE);
         }
+        Account account = stillActive(pending, request);
         request.getSession().removeAttribute(PendingLogin.SESSION_ATTRIBUTE);
-        lockout.recordSuccess(pending.accountId());
-        return finish(pending.accountId(), pending.type(), pending.superAdmin(), pending.primaryFactor(), true,
+        lockout.recordSuccess(account.id());
+        return finish(account.id(), account.type(), account.isSuperAdmin(), pending.primaryFactor(), true,
                 request, response);
     }
 
@@ -100,10 +114,11 @@ public class LoginFlow {
 
     MfaSetupConfirmed confirmMfaSetup(String code, HttpServletRequest request, HttpServletResponse response) {
         PendingLogin pending = pending(request);
-        List<String> recoveryCodes = mfa.confirmEnrollment(pending.accountId(), code);
+        Account account = stillActive(pending, request);
+        List<String> recoveryCodes = mfa.confirmEnrollment(account.id(), code);
         request.getSession().removeAttribute(PendingLogin.SESSION_ATTRIBUTE);
-        lockout.recordSuccess(pending.accountId());
-        LoginResponse login = finish(pending.accountId(), pending.type(), pending.superAdmin(),
+        lockout.recordSuccess(account.id());
+        LoginResponse login = finish(account.id(), account.type(), account.isSuperAdmin(),
                 pending.primaryFactor(), true, request, response);
         return new MfaSetupConfirmed(recoveryCodes, login);
     }
@@ -120,7 +135,7 @@ public class LoginFlow {
     LoginStatus pendingStep(HttpServletRequest request) {
         HttpSession httpSession = request.getSession(false);
         if (httpSession == null || !(httpSession.getAttribute(PendingLogin.SESSION_ATTRIBUTE)
-                instanceof PendingLogin pending)) {
+                instanceof PendingLogin pending) || pending.isExpiredAt(clock.instant(), pendingLoginTtl)) {
             return null;
         }
         return mfa.isEnabled(pending.accountId()) ? LoginStatus.MFA_REQUIRED : LoginStatus.MFA_SETUP_REQUIRED;
@@ -130,6 +145,11 @@ public class LoginFlow {
             boolean usedTotp, HttpServletRequest request, HttpServletResponse response) {
         session.establish(accountId, type, superAdmin, factor, usedTotp, request, response);
         eventLogger.log(AuthEventType.LOGIN_COMPLETED, accountId, RequestContextResolver.from(request));
+        // Con contraseña (y MFA) o social: todos los logins pasan por aquí.
+        if (knownDevices.enabled()) {
+            knownDevices.loginCompleted(accountId, deviceCookie.resolve(request, response),
+                    RequestContextResolver.from(request));
+        }
         if (type == AccountType.STAFF) {
             List<TenantOption> options = tenants.tenantsOf(accountId);
             if (options.size() == 1) {
@@ -141,11 +161,31 @@ public class LoginFlow {
         return new LoginResponse(LoginStatus.AUTHENTICATED, session.consumeRedirectUrl(request, response));
     }
 
-    private static PendingLogin pending(HttpServletRequest request) {
+    /*
+     * Entre la contraseña y el segundo factor la cuenta puede haberse
+     * desactivado o haber perdido el rol de superadmin: se vuelve a leer de la
+     * base de datos (cerrar sus sesiones no borra un login a medias, que aún no
+     * tiene usuario). Si ya no está activa, el login a medias se descarta.
+     */
+    private Account stillActive(PendingLogin pending, HttpServletRequest request) {
+        return accounts.findActive(pending.accountId()).orElseThrow(() -> {
+            request.getSession().removeAttribute(PendingLogin.SESSION_ATTRIBUTE);
+            return new DomainException(IdentityErrorCode.INVALID_CREDENTIALS);
+        });
+    }
+
+    /*
+     * El login a medias tiene su propia caducidad (cherrycore.security.login-protection.pending-login-ttl),
+     * más corta que la sesión: pasado ese tiempo hay que volver a poner la contraseña.
+     */
+    private PendingLogin pending(HttpServletRequest request) {
         HttpSession httpSession = request.getSession(false);
         if (httpSession != null && httpSession.getAttribute(PendingLogin.SESSION_ATTRIBUTE)
                 instanceof PendingLogin pending) {
-            return pending;
+            if (!pending.isExpiredAt(clock.instant(), pendingLoginTtl)) {
+                return pending;
+            }
+            httpSession.removeAttribute(PendingLogin.SESSION_ATTRIBUTE);
         }
         throw new DomainException(IdentityErrorCode.NO_PENDING_LOGIN);
     }

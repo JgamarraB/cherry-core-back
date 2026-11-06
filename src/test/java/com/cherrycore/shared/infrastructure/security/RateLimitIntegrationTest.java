@@ -17,7 +17,8 @@ import com.cherrycore.support.JsonBodies;
 @IntegrationTest
 @TestPropertySource(properties = {
         "cherrycore.security.rate-limit.enabled=true",
-        "cherrycore.security.rate-limit.capacity=3"
+        "cherrycore.security.rate-limit.capacity=3",
+        "cherrycore.security.rate-limit.read-capacity=2"
 })
 class RateLimitIntegrationTest {
 
@@ -35,6 +36,18 @@ class RateLimitIntegrationTest {
 
         assertThat(throttled.getResponse().getStatus()).isEqualTo(429);
         assertThat(throttled.getResponse().getHeader(HttpHeaders.RETRY_AFTER)).isNotBlank();
+        assertThat(JsonBodies.<String>read(throttled, "$.error.code")).isEqualTo("TOO_MANY_REQUESTS");
+    }
+
+    @Test
+    void appBrandingLookupsAreThrottledPerIpWhateverTheClientId() throws Exception {
+        BrowserSession browser = new BrowserSession(mockMvc);
+        assertThat(browser.get("/api/auth/apps/unknown-one").getResponse().getStatus()).isEqualTo(404);
+        assertThat(browser.get("/api/auth/apps/unknown-two").getResponse().getStatus()).isEqualTo(404);
+
+        MvcResult throttled = browser.get("/api/auth/apps/unknown-three");
+
+        assertThat(throttled.getResponse().getStatus()).isEqualTo(429);
         assertThat(JsonBodies.<String>read(throttled, "$.error.code")).isEqualTo("TOO_MANY_REQUESTS");
     }
 }

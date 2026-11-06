@@ -3,6 +3,7 @@ package com.cherrycore.identity.application;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
@@ -35,6 +36,18 @@ public class OneTimeTokenIssuer {
      */
     public String issue(Account account, OneTimeTokenPurpose purpose, Duration ttl) {
         return issue(account, purpose, ttl, null);
+    }
+
+    /**
+     * Anula los enlaces pendientes de la cuenta para esos propósitos. Se usa
+     * cuando cambian las credenciales (contraseña o email): un enlace pedido
+     * antes, quizá por quien tenía la cuenta, ya no debe servir.
+     */
+    public void revokePending(UUID accountId, OneTimeTokenPurpose... purposes) {
+        Instant now = clock.instant();
+        for (OneTimeTokenPurpose purpose : purposes) {
+            tokenRepository.invalidatePending(accountId, purpose, now);
+        }
     }
 
     public String issue(Account account, OneTimeTokenPurpose purpose, Duration ttl, String payload) {

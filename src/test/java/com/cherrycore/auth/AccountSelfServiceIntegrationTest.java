@@ -58,6 +58,10 @@ class AccountSelfServiceIntegrationTest {
         assertThat(JsonBodies.<String>read(overview, "$.data.type")).isEqualTo("CUSTOMER");
         assertThat(JsonBodies.<String>read(overview, "$.data.email")).isEqualTo(email);
         assertThat(JsonBodies.<Boolean>read(overview, "$.data.mfa.required")).isFalse();
+        assertThat(JsonBodies.<Boolean>read(overview, "$.data.hasPassword")).isTrue();
+        // La sesión dice quién soy (el frontend lo usa para marcar "tú" en los listados).
+        assertThat(JsonBodies.<String>read(session.get("/api/auth/session"), "$.data.accountId"))
+                .isEqualTo(JsonBodies.<String>read(overview, "$.data.id"));
 
         MvcResult updated = session.call(HttpMethod.PUT, "/api/account/profile",
                 "{\"firstName\": \"Eva\", \"lastName\": \"Sanz\", \"locale\": \"en\"}");
@@ -108,8 +112,69 @@ class AccountSelfServiceIntegrationTest {
         assertThat(confirmed.getResponse().getStatus()).isEqualTo(200);
         mailbox.awaitEmail(email, "El email de tu cuenta ha cambiado");
 
+        // El email anterior se enteró ya al pedirse el cambio (sin el enlace de confirmación).
+        var notice = mailbox.awaitEmail(email, "Se ha pedido cambiar el email de tu cuenta");
+        assertThat(notice.textBody()).contains(newEmail).doesNotContain(token);
+
         assertThat(new BrowserSession(mockMvc).login(newEmail, PASSWORD).getResponse().getStatus()).isEqualTo(200);
         assertThat(new BrowserSession(mockMvc).login(email, PASSWORD).getResponse().getStatus()).isEqualTo(401);
+    }
+
+    /*
+     * Quien tenía la sesión pide cambiar el email al suyo. La víctima recupera
+     * la cuenta con "olvidé mi contraseña": el enlace de cambio de email que
+     * recibió el atacante ya no debe servir (si no, se quedaría con la cuenta).
+     */
+    @Test
+    void passwordResetCancelsAPendingEmailChange() throws Exception {
+        String attackerEmail = CustomerFixtures.uniqueEmail();
+        session.call(HttpMethod.POST, "/api/account/email",
+                "{\"currentPassword\": \"" + PASSWORD + "\", \"newEmail\": \"" + attackerEmail + "\"}");
+        String emailChangeToken = mailbox.awaitToken(attackerEmail, "Confirma tu nuevo email");
+
+        BrowserSession victim = new BrowserSession(mockMvc);
+        victim.postJson(AuthPaths.CUSTOMER_FORGOT_PASSWORD, "{\"email\": \"" + email + "\"}");
+        String resetToken = mailbox.awaitToken(email, CustomerFixtures.RESET_SUBJECT_ES);
+        assertThat(victim.postJson(AuthPaths.RESET_PASSWORD, "{\"token\": \"" + resetToken
+                + "\", \"newPassword\": \"" + NEW_PASSWORD + "\"}").getResponse().getStatus()).isEqualTo(200);
+
+        MvcResult confirm = new BrowserSession(mockMvc).postJson(AuthPaths.EMAIL_CHANGE_CONFIRM,
+                "{\"token\": \"" + emailChangeToken + "\"}");
+        assertThat(JsonBodies.<String>read(confirm, "$.error.code")).isEqualTo("INVALID_OR_EXPIRED_TOKEN");
+        assertThat(new BrowserSession(mockMvc).login(email, NEW_PASSWORD).getResponse().getStatus()).isEqualTo(200);
+    }
+
+    /*
+     * Un enlace de "olvidé mi contraseña" enviado al email anterior (quizá
+     * comprometido, por eso se cambia) no vale tras cambiar el email, ni tras
+     * cambiar la contraseña.
+     */
+    @Test
+    void credentialChangesCancelPendingPasswordResetLinks() throws Exception {
+        new BrowserSession(mockMvc).postJson(AuthPaths.CUSTOMER_FORGOT_PASSWORD, "{\"email\": \"" + email + "\"}");
+        String oldMailboxReset = mailbox.awaitToken(email, CustomerFixtures.RESET_SUBJECT_ES);
+
+        String newEmail = CustomerFixtures.uniqueEmail();
+        session.call(HttpMethod.POST, "/api/account/email",
+                "{\"currentPassword\": \"" + PASSWORD + "\", \"newEmail\": \"" + newEmail + "\"}");
+        String token = mailbox.awaitToken(newEmail, "Confirma tu nuevo email");
+        new BrowserSession(mockMvc).postJson(AuthPaths.EMAIL_CHANGE_CONFIRM, "{\"token\": \"" + token + "\"}");
+
+        MvcResult afterEmailChange = new BrowserSession(mockMvc).postJson(AuthPaths.RESET_PASSWORD,
+                "{\"token\": \"" + oldMailboxReset + "\", \"newPassword\": \"" + NEW_PASSWORD + "\"}");
+        assertThat(JsonBodies.<String>read(afterEmailChange, "$.error.code")).isEqualTo("INVALID_OR_EXPIRED_TOKEN");
+
+        mailbox.clear();
+        new BrowserSession(mockMvc).postJson(AuthPaths.CUSTOMER_FORGOT_PASSWORD,
+                "{\"email\": \"" + newEmail + "\"}");
+        String resetBeforeChange = mailbox.awaitToken(newEmail, CustomerFixtures.RESET_SUBJECT_ES);
+        session.call(HttpMethod.PUT, "/api/account/password",
+                "{\"currentPassword\": \"" + PASSWORD + "\", \"newPassword\": \"" + NEW_PASSWORD + "\"}");
+
+        MvcResult afterPasswordChange = new BrowserSession(mockMvc).postJson(AuthPaths.RESET_PASSWORD,
+                "{\"token\": \"" + resetBeforeChange + "\", \"newPassword\": \"Otra-mas-2028-xx\"}");
+        assertThat(JsonBodies.<String>read(afterPasswordChange, "$.error.code"))
+                .isEqualTo("INVALID_OR_EXPIRED_TOKEN");
     }
 
     @Test
@@ -127,10 +192,28 @@ class AccountSelfServiceIntegrationTest {
         assertThat(otherDevice.get("/api/account").getResponse().getStatus()).isEqualTo(401);
     }
 
+    /*
+     * Con una sesión robada se podía activar el MFA con la app del atacante:
+     * el dueño se quedaba fuera de su cuenta. Ahora pide la contraseña actual
+     * y los fallos cuentan para el bloqueo.
+     */
+    @Test
+    void turningOnTwoStepVerificationRequiresTheCurrentPassword() throws Exception {
+        MvcResult withoutPassword = session.call(HttpMethod.POST, "/api/account/mfa/setup", "{}");
+        assertThat(JsonBodies.<String>read(withoutPassword, "$.error.code")).isEqualTo("WRONG_CURRENT_PASSWORD");
+        for (int attempt = 0; attempt < 4; attempt++) {
+            MvcResult wrong = session.call(HttpMethod.POST, "/api/account/mfa/setup",
+                    "{\"currentPassword\": \"intento-" + attempt + "-xx\"}");
+            assertThat(JsonBodies.<String>read(wrong, "$.error.code")).isEqualTo("WRONG_CURRENT_PASSWORD");
+        }
+        mailbox.awaitEmail(email, CustomerFixtures.LOCKED_SUBJECT_ES);
+        assertThat(JsonBodies.<Boolean>read(session.get("/api/account/mfa"), "$.data.enabled")).isFalse();
+    }
+
     @Test
     void customersCanTurnOnTwoStepVerification() throws Exception {
-        String secret = JsonBodies.read(session.call(HttpMethod.POST, "/api/account/mfa/setup", null),
-                "$.data.secret");
+        String secret = JsonBodies.read(session.call(HttpMethod.POST, "/api/account/mfa/setup",
+                "{\"currentPassword\": \"" + PASSWORD + "\"}"), "$.data.secret");
         MvcResult enabled = session.call(HttpMethod.POST, "/api/account/mfa/setup/confirm",
                 "{\"code\": \"" + TotpCodes.code(secret, 0) + "\"}");
         assertThat(JsonBodies.<List<String>>read(enabled, "$.data.recoveryCodes")).hasSize(10);

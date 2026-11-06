@@ -73,7 +73,7 @@ public class AdminAccountsController {
 
     @PostMapping("/{accountId}/unlock")
     public ApiSuccessResponse<AccountDetail> unlock(@PathVariable UUID accountId, HttpServletRequest request) {
-        administration.unlock(accountId, RequestContextResolver.from(request));
+        administration.unlock(AdminSupport.currentAdmin(), accountId, RequestContextResolver.from(request));
         return ApiSuccessResponse.of(admin.accountDetail(accountId));
     }
 
@@ -86,7 +86,7 @@ public class AdminAccountsController {
     @PostMapping("/{accountId}/password-reset")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public ApiSuccessResponse<Void> sendPasswordReset(@PathVariable UUID accountId, HttpServletRequest request) {
-        administration.sendPasswordReset(accountId, RequestContextResolver.from(request));
+        administration.sendPasswordReset(AdminSupport.currentAdmin(), accountId, RequestContextResolver.from(request));
         return ApiSuccessResponse.of(null);
     }
 

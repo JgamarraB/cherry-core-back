@@ -68,7 +68,7 @@ public class CompanyAuthController {
             HttpServletRequest request) {
         Optional<UUID> loggedIn = CurrentAccount.id();
         if (loggedIn.isPresent()) {
-            invitations.acceptWithExistingAccount(body.token(), loggedIn.get());
+            invitations.acceptWithExistingAccount(body.token(), loggedIn.get(), RequestContextResolver.from(request));
         } else {
             invitations.acceptWithNewAccount(new AcceptInvitationCommand(body.token(), body.firstName(),
                     body.lastName(), body.phone(), body.password(), locale), RequestContextResolver.from(request));

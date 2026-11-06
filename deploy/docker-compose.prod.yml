@@ -1,0 +1,169 @@
+# ---------------------------------------------------------------
+# CherryCore en producción (una máquina virtual Ubuntu).
+#   cd deploy && docker compose -f docker-compose.prod.yml up -d --build
+# Guía: docs/despliegue.md · Variables: .env (copia de .env.prod.example)
+#
+# Solo Caddy publica puertos (80/443). Caddy saca el certificado HTTPS
+# (Let's Encrypt) y reparte:
+#   APP_DOMAIN   → frontend (nginx: SPA + proxy de /api, /oauth2... al backend)
+#   MEDIA_DOMAIN → RustFS, solo lectura de companies/*/public/* (logos)
+# ---------------------------------------------------------------
+name: cherrycore
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  postgres:
+    image: postgres:17.6-bookworm
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_DB: ${DB_NAME:?falta DB_NAME}
+      POSTGRES_USER: ${DB_USERNAME:?falta DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  storage:
+    image: rustfs/rustfs:1.0.3
+    restart: unless-stopped
+    logging: *logging
+    command: /data
+    environment:
+      RUSTFS_ACCESS_KEY: ${STORAGE_ACCESS_KEY:?falta STORAGE_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${STORAGE_SECRET_KEY:?falta STORAGE_SECRET_KEY}
+      # Sin consola web en producción.
+      RUSTFS_CONSOLE_ENABLE: "false"
+    volumes:
+      - storage_data:/data
+    networks: [internal, edge]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:9000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: cherrycore-backend:${CHERRYCORE_VERSION:-latest}
+    build:
+      context: ..
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: ${BACKEND_MEMORY_LIMIT:-1g}
+    stop_grace_period: 40s
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # Ficheros de configuración extra opcionales (p. ej. login social): ./config/application-prod.yaml
+      SPRING_CONFIG_ADDITIONAL_LOCATION: optional:file:/config/
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      CHERRYCORE_ISSUER: https://${APP_DOMAIN:?falta APP_DOMAIN}
+      CHERRYCORE_FRONTEND_URL: https://${APP_DOMAIN}
+      CORS_ALLOWED_ORIGINS: https://${APP_DOMAIN}
+      CHERRYCORE_ENCRYPTION_KEY: ${CHERRYCORE_ENCRYPTION_KEY:?falta CHERRYCORE_ENCRYPTION_KEY}
+      CHERRYCORE_ENCRYPTION_KEY_ID: ${CHERRYCORE_ENCRYPTION_KEY_ID:-1}
+      # Solo durante una rotación de la clave de cifrado (lo usa ./config/application-prod.yaml).
+      CHERRYCORE_PREVIOUS_ENCRYPTION_KEY: ${CHERRYCORE_PREVIOUS_ENCRYPTION_KEY:-}
+      CHERRYCORE_HASH_KEY: ${CHERRYCORE_HASH_KEY:?falta CHERRYCORE_HASH_KEY}
+      JWT_KEY_ID: ${JWT_KEY_ID:?falta JWT_KEY_ID}
+      JWT_PRIVATE_KEY_LOCATION: file:/run/secrets/jwt-private.pem
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
+      MAIL_HOST: ${MAIL_HOST:-smtp-relay.brevo.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:?falta MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:?falta MAIL_PASSWORD}
+      MAIL_FROM: ${MAIL_FROM:?falta MAIL_FROM}
+      STORAGE_ENDPOINT: http://storage:9000
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-cherrycore-media}
+      STORAGE_PUBLIC_URL: https://${MEDIA_DOMAIN:?falta MEDIA_DOMAIN}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-}
+      # Login social (solo si existe ./config/application-prod.yaml que los use).
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      APPLE_SERVICE_ID: ${APPLE_SERVICE_ID:-}
+      APPLE_TEAM_ID: ${APPLE_TEAM_ID:-}
+      APPLE_KEY_ID: ${APPLE_KEY_ID:-}
+    volumes:
+      - ./secrets:/run/secrets:ro
+      - ./config:/config:ro
+    networks: [internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      storage:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8080/actuator/health/readiness"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+
+  frontend:
+    image: cherrycore-frontend:${CHERRYCORE_VERSION:-latest}
+    build:
+      context: ${FRONTEND_SRC:-../../cherry-core-front}
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      BACKEND_URL: http://backend:8080
+      STORAGE_PUBLIC_URL: https://${MEDIA_DOMAIN}
+    networks: [internal, edge]
+    depends_on:
+      backend:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    logging: *logging
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      MEDIA_DOMAIN: ${MEDIA_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?falta ACME_EMAIL}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-cherrycore-media}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [edge]
+    depends_on:
+      frontend:
+        condition: service_started
+
+networks:
+  # Base de datos y backend: Caddy no los ve.
+  internal:
+  # Lo que Caddy puede alcanzar.
+  edge:
+
+volumes:
+  postgres_data:
+  storage_data:
+  # Certificados de Let's Encrypt: NO borrar (hay límite de emisiones).
+  caddy_data:
+  caddy_config:

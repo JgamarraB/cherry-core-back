@@ -28,7 +28,9 @@ import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * Limita las peticiones que modifican, por IP y endpoint, en la API de
- * autenticación y de "mi cuenta" (login, registro, MFA, contraseña...). Frena ataques de fuerza bruta, credential stuffing y spam
+ * autenticación y de "mi cuenta" (login, registro, MFA, contraseña...) y las
+ * invitaciones de empresa (cada una envía un email), y
+ * algunas lecturas (marca de la app en el login, descarga de mis datos). Frena ataques de fuerza bruta, credential stuffing y spam
  * de registros/emails. Responde 429 con la cabecera Retry-After.
  *
  * <p>Los contadores están en memoria: con varias instancias de CherryCore
@@ -50,11 +52,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private final Cache<String, Bucket> buckets;
     private final int capacity;
+    private final int readCapacity;
     private final Duration refillPeriod;
     private final ApiErrorWriter errorWriter;
 
     public RateLimitFilter(CherryCoreProperties.RateLimit settings, ApiErrorWriter errorWriter) {
         this.capacity = settings.capacity();
+        this.readCapacity = settings.readCapacity();
         this.refillPeriod = settings.refillPeriod();
         this.errorWriter = errorWriter;
         this.buckets = Caffeine.newBuilder()
@@ -70,9 +74,30 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String uri = request.getRequestURI();
+        if (limitedRead(request) != null) {
+            return false;
+        }
         boolean limitedPath = uri.startsWith(SecurityPaths.AUTH_API_PREFIX)
-                || uri.startsWith(SecurityPaths.ACCOUNT_API_PREFIX);
+                || uri.startsWith(SecurityPaths.ACCOUNT_API_PREFIX)
+                || uri.equals(SecurityPaths.COMPANY_INVITATIONS);
         return !limitedPath || !LIMITED_METHODS.contains(request.getMethod());
+    }
+
+    /*
+     * Lecturas limitadas. La marca de la app se agrupa por prefijo (no por
+     * client_id): así no se pueden probar ids sin límite cambiando la URL.
+     *
+     * @return el grupo del contador, o null si no es una lectura limitada
+     */
+    static String limitedRead(HttpServletRequest request) {
+        if (!HttpMethod.GET.name().equals(request.getMethod())) {
+            return null;
+        }
+        String uri = request.getRequestURI();
+        if (uri.startsWith(SecurityPaths.APP_BRANDING_PREFIX)) {
+            return SecurityPaths.APP_BRANDING_PREFIX;
+        }
+        return SecurityPaths.ACCOUNT_EXPORT.equals(uri) ? SecurityPaths.ACCOUNT_EXPORT : null;
     }
 
     /*
@@ -96,8 +121,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        String key = clientKey(request.getRemoteAddr()) + KEY_SEPARATOR + request.getRequestURI();
-        ConsumptionProbe probe = buckets.get(key, ignored -> newBucket()).tryConsumeAndReturnRemaining(1);
+        String readGroup = limitedRead(request);
+        String path = readGroup == null ? request.getRequestURI() : readGroup;
+        int limit = SecurityPaths.APP_BRANDING_PREFIX.equals(readGroup) ? readCapacity : capacity;
+        String key = clientKey(request.getRemoteAddr()) + KEY_SEPARATOR + request.getMethod() + KEY_SEPARATOR + path;
+        ConsumptionProbe probe = buckets.get(key, ignored -> newBucket(limit)).tryConsumeAndReturnRemaining(1);
         if (probe.isConsumed()) {
             chain.doFilter(request, response);
             return;
@@ -107,9 +135,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         errorWriter.write(response, CommonErrorCode.TOO_MANY_REQUESTS);
     }
 
-    private Bucket newBucket() {
+    private Bucket newBucket(int limit) {
         return Bucket.builder()
-                .addLimit(Bandwidth.builder().capacity(capacity).refillGreedy(capacity, refillPeriod).build())
+                .addLimit(Bandwidth.builder().capacity(limit).refillGreedy(limit, refillPeriod).build())
                 .build();
     }
 }

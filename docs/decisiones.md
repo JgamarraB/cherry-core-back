@@ -43,6 +43,21 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - Límite de peticiones por IP (las IPv6 se agrupan por bloque /64) en `/api/auth` y `/api/account`.
 - Una cuenta **sin verificar** pudo crearla cualquiera con un email ajeno: si después se vincula por login social, su contraseña se elimina.
 
+- Al cambiar o restablecer la contraseña se anulan los enlaces pendientes de "olvidé mi contraseña" y de cambio de email; al confirmar un email nuevo se anulan los enlaces enviados al anterior. — 2026-11-06
+- El segundo paso del login (código MFA) vuelve a leer la cuenta: si se ha desactivado o ha perdido el rol de superadmin desde que puso la contraseña, no entra. — 2026-11-06
+- Google solo cuenta como email verificado si es Gmail o de Google Workspace (claim `hd`); con otro email no se vincula ni se crea cuenta (las identidades ya vinculadas siguen funcionando). — 2026-11-06
+- El último superadmin activo no puede borrar su cuenta. — 2026-11-06
+
+- Activar el MFA desde "Mi cuenta" pide la contraseña actual (o haber entrado hace poco si la cuenta no tiene); los fallos cuentan para el bloqueo. — 2026-11-06
+- El login a medias (contraseña bien, falta el código) caduca a los 10 minutos (`pending-login-ttl`). — 2026-11-06
+- Los códigos de recuperación se guardan con HMAC-SHA256 y una clave del servidor (`CHERRYCORE_HASH_KEY`), no con SHA-256 sin clave. — 2026-11-06
+- Los secretos MFA cifrados llevan el id de su clave (`k1:...`); la clave se puede rotar con `previous-encryption-key` (ver despliegue §11). — 2026-11-06
+- Al pedir un cambio de email se avisa también al email actual. — 2026-11-06
+- Las acciones que pueden dejar la plataforma sin superadmin se serializan con un bloqueo de Postgres. — 2026-11-06
+
+- **Aviso de dispositivo nuevo**: al completar un login (contraseña + MFA, o social) desde un navegador que la cuenta no conocía, email con fecha, dispositivo aproximado e IP, y evento `NEW_DEVICE_LOGIN`. El navegador se reconoce por una cookie con id aleatorio (`CHERRYCORE_DEVICE`, HttpOnly, SameSite=Lax, 400 días); en la base de datos solo hay un HMAC de cuenta + id (tabla `known_devices`). No por IP: cambia demasiado. El primer dispositivo de la cuenta no avisa. Se apaga con `cherrycore.security.new-device-alert.enabled`. — 2026-11-06
+- **Actividad de seguridad** en Mi cuenta (`GET /api/account/activity`): mis eventos, con la misma regla que la exportación (si lo hizo otra persona, sin su IP ni navegador). — 2026-11-06
+
 ## D4 · CherryCore es nuestro Identity Provider — 2026-11-05
 
 - Se construye con **Spring Authorization Server** (OAuth2 / OpenID Connect).
@@ -52,6 +67,9 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - La sesión de login de CherryCore es una cookie `HttpOnly` guardada en Postgres (Spring Session): permite varias instancias.
 - Las apps usan el patrón **BFF**: su backend recibe y guarda los tokens; el navegador solo tiene una cookie. PKCE obligatorio y refresh tokens que cambian en cada uso.
 - Contrato para el frontend: [api.md](api.md). Cómo se conecta una app: [integracion-apps.md](integracion-apps.md).
+
+- La clave de firma se puede rotar: las anteriores se publican en el JWKS (`signing-key.previous-keys`) hasta que caducan sus tokens; se firma siempre con la actual. — 2026-11-06
+- En producción las redirect URIs son siempre https (`allow-insecure-redirect-uris` solo en local/test). — 2026-11-06
 
 ## D5 · Formato de respuestas y errores — 2026-11-05
 
@@ -82,6 +100,12 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - Las apps se activan por empresa a mano desde el panel; más adelante lo hará la **suscripción de Stripe**.
 - Backoffice en varias empresas: elige con cuál entrar. El token de la app lleva `tenant_id`, `tenant_role` y `permissions` (solo los de esa app), y se revalida en cada refresh.
 
+- Límite por IP también en lecturas sensibles: marca de app del login (`/api/auth/apps/*`, todo el prefijo cuenta junto) y exportación de datos.
+
+- Quien no es OWNER solo puede dar permisos que tiene: al asignar un rol, invitar con un rol o añadir permisos a un rol (`ROLE_ABOVE_OWN_PERMISSIONS`). Quitar permisos sí puede. — 2026-11-06
+- Las comprobaciones de "siempre queda un OWNER activo" bloquean la fila de la empresa: dos operaciones simultáneas no pueden dejarla sin dueño. — 2026-11-06
+- Ningún cliente OAuth puede enlazarse a la app reservada `cherrycore`. — 2026-11-06
+
 ## D8 · Datos y auditoría — 2026-11-05
 
 - **Borrado lógico** en todas las tablas (`deleted_at`, `deleted_by`).
@@ -106,6 +130,8 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - Un único frontend con: login/registro/recuperación, "mi cuenta", gestión de la empresa y **panel de superadmin**.
 - Se sirve en el **mismo dominio** que la API y usa la **sesión con cookie + CSRF** (no tokens). Los tokens son solo para las apps externas.
 
+- La auditoría guarda `details` (JSONB) con claves permitidas y sin secretos. El evento se apunta a la cuenta afectada (con el actor en `actorAccountId`) o, si no hay, al actor. — 2026-11-06
+
 ## D12 · Ficheros (logos y multimedia) — 2026-11-05
 
 - Almacenamiento **compatible con S3**: el código no depende del proveedor.
@@ -113,6 +139,10 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - Una carpeta por empresa: `companies/{id}/public/...` (público, p. ej. logo). El resto del bucket es privado.
 - El tipo de imagen se comprueba por el contenido (PNG, JPEG, WEBP). **Nunca SVG** (puede llevar JavaScript).
 - Los emails de una empresa (invitaciones, aprobación) llevan **su logo o, si no tiene, su nombre comercial**. Los de cuenta llevan la marca de la plataforma.
+
+- Las apps del catálogo también tienen su carpeta pública `applications/{id}/public/...` (logo que se ve en el login). — 2026-11-06
+
+- Los logos se re-codifican (PNG/JPEG) sin metadatos y con un máximo de 4096×4096 px leído de la cabecera antes de decodificar. WEBP no se re-codifica (Java no lo decodifica sin librería extra): se comprueban sus dimensiones en la cabecera y se quitan los bloques EXIF/XMP. — 2026-11-06
 
 ## D13 · Borrado de cuenta (RGPD) — 2026-11-05
 
@@ -132,3 +162,5 @@ Las demás apps (Lirgar Mobility, etc.) **no gestionan logins**: solo validan el
 - Suscripciones con Stripe (fase 2 del producto).
 - Webhooks a las apps (cuenta borrada, empresa suspendida...).
 - Passkeys (WebAuthn) como alternativa al TOTP.
+- **Derecho de acceso**: cada persona descarga sus datos en JSON desde Mi cuenta (`GET /api/account/export`). — 2026-11-06
+- En la descarga de datos, los eventos que hizo otra persona sobre mi cuenta (superadmin, dueño) salen sin IP ni navegador. — 2026-11-06

@@ -80,12 +80,14 @@ public class CompanyRolesService {
 
     @Transactional
     public RoleView create(StaffActor actor, String code, String name, Set<UUID> permissionIds) {
-        UUID companyId = access.require(actor, CompanyPermission.ROLES_MANAGE).company().id();
+        CompanyContext context = access.require(actor, CompanyPermission.ROLES_MANAGE);
+        UUID companyId = context.company().id();
         RoleCode roleCode = new RoleCode(code);
         if (roles.findByCompanyAndCode(companyId, roleCode).isPresent()) {
             throw new DomainException(CompanyErrorCode.ROLE_CODE_ALREADY_EXISTS);
         }
         validatePermissions(companyId, permissionIds);
+        access.requireCanGrant(context, permissionIds);
         CompanyRole role = new CompanyRole(UuidV7.generate(clock), companyId, roleCode, cleanName(name), false,
                 permissionIds);
         roles.save(role);
@@ -97,12 +99,16 @@ public class CompanyRolesService {
      */
     @Transactional
     public RoleView update(StaffActor actor, UUID roleId, String name, Set<UUID> permissionIds) {
-        UUID companyId = access.require(actor, CompanyPermission.ROLES_MANAGE).company().id();
+        CompanyContext context = access.require(actor, CompanyPermission.ROLES_MANAGE);
+        UUID companyId = context.company().id();
         CompanyRole role = findInCompany(companyId, roleId);
         if (name != null && !name.strip().equals(role.name())) {
             role.rename(cleanName(name));
         }
         validatePermissions(companyId, permissionIds);
+        // Solo cuentan los permisos que se añaden: quitar los que uno no tiene sí se permite.
+        access.requireCanGrant(context, permissionIds.stream()
+                .filter(permissionId -> !role.permissionIds().contains(permissionId)).toList());
         role.replacePermissions(permissionIds);
         roles.save(role);
         return toView(role, permissionViews(role.permissionIds()));

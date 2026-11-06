@@ -9,6 +9,8 @@ import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationConsentService;
@@ -19,7 +21,6 @@ import org.springframework.security.oauth2.server.authorization.client.JdbcRegis
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 
 import com.cherrycore.shared.infrastructure.config.CherryCoreProperties;
@@ -46,7 +47,8 @@ public class AuthorizationServerConfig {
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
     SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http, CherryCoreProperties properties,
-            JwtDecoder jwtDecoder, SecurityHeadersCustomizer securityHeaders) throws Exception {
+            JwtDecoder jwtDecoder, SecurityHeadersCustomizer securityHeaders, RegisteredClientRepository clients)
+            throws Exception {
         http
                 .oauth2AuthorizationServer(authorizationServer -> {
                     http.securityMatcher(authorizationServer.getEndpointsMatcher());
@@ -58,7 +60,7 @@ public class AuthorizationServerConfig {
                         .decoder(jwtDecoder)
                         .jwtAuthenticationConverter(new JwtAccountAuthenticationConverter())))
                 .exceptionHandling(exceptions -> exceptions.defaultAuthenticationEntryPointFor(
-                        new LoginUrlAuthenticationEntryPoint(properties.frontend().loginUrl().toString()),
+                        new AppAwareLoginEntryPoint(properties.frontend().loginUrl(), clients),
                         new MediaTypeRequestMatcher(MediaType.TEXT_HTML)))
                 .cors(Customizer.withDefaults())
                 .headers(securityHeaders::apply);
@@ -87,19 +89,37 @@ public class AuthorizationServerConfig {
         return new JdbcOAuth2AuthorizationConsentService(jdbcOperations, clients);
     }
 
+    /**
+     * Lo que se publica en {@code /oauth2/jwks}: la clave pública actual y las
+     * anteriores (rotación).
+     */
     @Bean
     JWKSource<SecurityContext> jwkSource(SigningKeyProvider signingKeys) {
-        return new ImmutableJWKSet<>(new JWKSet(signingKeys.rsaKey()));
+        return new ImmutableJWKSet<>(signingKeys.verificationKeys());
+    }
+
+    /**
+     * Firma de tokens: SOLO con la clave actual (si el JWKS tiene varias claves,
+     * el Authorization Server no sabría con cuál firmar).
+     */
+    @Bean
+    JwtEncoder jwtEncoder(SigningKeyProvider signingKeys) {
+        return new NimbusJwtEncoder(new ImmutableJWKSet<>(new JWKSet(signingKeys.rsaKey())));
     }
 
     /**
      * Valida los tokens que el propio CherryCore recibe en su API:
-     * firma, caducidad e emisor.
+     * firma (clave actual o anteriores), caducidad e emisor.
      */
     @Bean
     JwtDecoder jwtDecoder(SigningKeyProvider signingKeys, CherryCoreProperties properties) {
-        NimbusJwtDecoder decoder = NimbusJwtDecoder.withPublicKey(signingKeys.publicKey()).build();
-        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(properties.issuer().toString()));
+        return decoderFor(signingKeys, properties.issuer().toString());
+    }
+
+    static NimbusJwtDecoder decoderFor(SigningKeyProvider signingKeys, String issuer) {
+        NimbusJwtDecoder decoder = NimbusJwtDecoder
+                .withJwkSource(new ImmutableJWKSet<>(signingKeys.verificationKeys())).build();
+        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(issuer));
         return decoder;
     }
 }

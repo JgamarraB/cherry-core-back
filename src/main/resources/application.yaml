@@ -121,6 +121,7 @@ cherrycore:
     email-change-url: ${CHERRYCORE_FRONTEND_URL}/confirm-email-change
     admin-url: ${CHERRYCORE_FRONTEND_URL}/admin
     social-signup-url: ${CHERRYCORE_FRONTEND_URL}/register/complete
+    account-activity-url: ${CHERRYCORE_FRONTEND_URL}/account/activity
 
   legal:
     terms-version: "2026-11-05"
@@ -141,6 +142,12 @@ cherrycore:
   security:
     # Clave para cifrar secretos (MFA). Base64 de 32 bytes: openssl rand -base64 32
     encryption-key: ${CHERRYCORE_ENCRYPTION_KEY}
+    # Id de esa clave (va delante de cada dato cifrado). Se cambia al rotar la clave.
+    encryption-key-id: ${CHERRYCORE_ENCRYPTION_KEY_ID:1}
+    # Clave anterior SOLO durante una rotación (ver docs/despliegue.md):
+    # CHERRYCORE_SECURITY_PREVIOUSENCRYPTIONKEY_ID y CHERRYCORE_SECURITY_PREVIOUSENCRYPTIONKEY_KEY.
+    # Clave HMAC de los códigos de recuperación MFA. Base64 de 32 bytes: openssl rand -base64 32
+    hash-key: ${CHERRYCORE_HASH_KEY}
     tokens:
       access-token-ttl: 15m
       customer-refresh-token-ttl: 30d
@@ -151,12 +158,17 @@ cherrycore:
       private-key-location: ${JWT_PRIVATE_KEY_LOCATION:}
       public-key-location: ${JWT_PUBLIC_KEY_LOCATION:}
       generate-ephemeral: false
+      # Claves públicas anteriores que se siguen publicando en /oauth2/jwks durante una
+      # rotación (key-id + public-key-location). Ver docs/despliegue.md.
+      previous-keys: []
     password:
       min-length: 10
       max-length: 128
     login-protection:
       max-failed-attempts: 5
       lock-duration: 15m
+      # Tiempo para poner el código MFA tras la contraseña.
+      pending-login-ttl: 10m
     one-time-tokens:
       email-verification-ttl: 24h
       password-reset-ttl: 30m
@@ -165,10 +177,18 @@ cherrycore:
       secure-cookie: true
       same-site: Lax
       timeout: 30m
+    # Aviso por email cuando se entra desde un navegador o dispositivo nuevo.
+    new-device-alert:
+      enabled: true
+      # Cookie con un id aleatorio del navegador (HttpOnly, SameSite=Lax).
+      cookie-name: CHERRYCORE_DEVICE
+      cookie-max-age: 400d
     rate-limit:
       enabled: true
       # Peticiones permitidas por IP y endpoint en cada periodo.
       capacity: 10
+      # Lecturas públicas por IP (marca de la app en el login): varias personas pueden compartir IP.
+      read-capacity: 60
       refill-period: 1m
 
   cors:
@@ -179,6 +199,8 @@ cherrycore:
   oauth:
     # Aplicaciones que pueden pedir tokens. Se definen por entorno.
     clients: []
+    # Redirect URIs http://localhost: solo desarrollo y tests.
+    allow-insecure-redirect-uris: false
 
   retention:
     # Todos los días a las 3:30 (UTC) se borran datos caducados.
@@ -201,3 +223,5 @@ cherrycore:
     bucket: ${STORAGE_BUCKET:cherrycore-media}
     public-base-url: ${STORAGE_PUBLIC_URL}
     max-image-size: 2MB
+    # Ancho y alto máximos en píxeles de las imágenes subidas (logos).
+    max-image-dimension: 4096

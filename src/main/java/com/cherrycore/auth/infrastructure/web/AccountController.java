@@ -24,6 +24,7 @@ import com.cherrycore.auth.infrastructure.web.AccountDtos.AccountOverview;
 import com.cherrycore.auth.infrastructure.web.AccountDtos.ChangeEmailRequest;
 import com.cherrycore.auth.infrastructure.web.AccountDtos.ChangePasswordRequest;
 import com.cherrycore.auth.infrastructure.web.AccountDtos.DeleteAccountRequest;
+import com.cherrycore.auth.infrastructure.web.AccountDtos.MfaSetupRequest;
 import com.cherrycore.auth.infrastructure.web.AccountDtos.RecoveryCodesResponse;
 import com.cherrycore.auth.infrastructure.web.AccountDtos.UpdateProfileRequest;
 import com.cherrycore.auth.infrastructure.web.LoginDtos.CodeRequest;
@@ -157,9 +158,14 @@ public class AccountController {
         return ApiSuccessResponse.of(mfa.status(currentAccount()));
     }
 
+    /**
+     * Pide la contraseña actual (cuentas sin contraseña: haber entrado hace poco).
+     */
     @PostMapping(MFA_SETUP)
-    public ApiSuccessResponse<MfaEnrollment> startMfaSetup() {
-        return ApiSuccessResponse.of(mfa.startEnrollment(currentAccount()));
+    public ApiSuccessResponse<MfaEnrollment> startMfaSetup(@Valid @RequestBody MfaSetupRequest body,
+            HttpServletRequest request) {
+        return ApiSuccessResponse.of(security.startMfaEnrollment(currentAccount(), body.currentPassword(),
+                recentlyAuthenticated(), RequestContextResolver.from(request)));
     }
 
     @PostMapping(MFA_SETUP_CONFIRM)
@@ -213,7 +219,7 @@ public class AccountController {
             phone = profile.phone() == null ? null : profile.phone().value();
         }
         return new AccountOverview(account.id(), account.type().name(), account.email().value(),
-                account.emailVerifiedAt() != null, account.locale().toLanguageTag(), firstName, lastName, phone,
+                account.emailVerifiedAt() != null, account.hasPassword(), account.locale().toLanguageTag(), firstName, lastName, phone,
                 account.isSuperAdmin(), mfa.status(account.id()));
     }
 

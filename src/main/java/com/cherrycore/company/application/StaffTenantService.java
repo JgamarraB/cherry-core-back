@@ -78,8 +78,11 @@ public class StaffTenantService {
                 .stream().collect(Collectors.toMap(Company::id, Function.identity()));
         return mine.stream()
                 .filter(membership -> companiesById.containsKey(membership.companyId()))
-                .map(membership -> new MyCompanyView(logos.view(companiesById.get(membership.companyId())),
-                        roles.findById(membership.roleId()).orElseThrow().code().value(), membership.status()))
+                .map(membership -> {
+                    CompanyRole role = roles.findById(membership.roleId()).orElseThrow();
+                    return new MyCompanyView(logos.view(companiesById.get(membership.companyId())),
+                            role.code().value(), role.name(), membership.status());
+                })
                 .toList();
     }
 

@@ -30,6 +30,14 @@ public interface AccountRepository {
 
     List<Account> findSuperAdmins();
 
+    /**
+     * Bloqueo de base de datos (hasta el final de la transacción) para los
+     * cambios que pueden dejar la plataforma sin superadmin: dos superadmins
+     * que se desactivan el uno al otro a la vez no pueden pasar los dos la
+     * comprobación de "queda otro". Llamarlo ANTES de leer los superadmins.
+     */
+    void lockSuperAdmins();
+
     void save(Account account);
 
     /**

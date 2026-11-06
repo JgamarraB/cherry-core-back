@@ -25,7 +25,8 @@ public class MfaFactorJpaEntity extends AuditableJpaEntity {
     @Column(name = "type", nullable = false, updatable = false)
     private String type;
 
-    @Column(name = "secret_encrypted", nullable = false, updatable = false)
+    // Actualizable: al rotar la clave de cifrado se vuelve a cifrar con la nueva.
+    @Column(name = "secret_encrypted", nullable = false)
     private String secretEncrypted;
 
     @Column(name = "confirmed_at")
@@ -50,6 +51,10 @@ public class MfaFactorJpaEntity extends AuditableJpaEntity {
 
     public String getSecretEncrypted() {
         return secretEncrypted;
+    }
+
+    public void setSecretEncrypted(String secretEncrypted) {
+        this.secretEncrypted = secretEncrypted;
     }
 
     public Instant getConfirmedAt() {

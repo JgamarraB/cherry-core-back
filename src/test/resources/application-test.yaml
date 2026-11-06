@@ -30,11 +30,14 @@ cherrycore:
     email-change-url: http://localhost:4200/confirm-email-change
     admin-url: http://localhost:4200/admin
     social-signup-url: http://localhost:4200/register/complete
+    account-activity-url: http://localhost:4200/account/activity
   mail:
     from: no-reply@cherrycore.test
   security:
     # Clave SOLO de desarrollo/tests. Nunca usarla en producción.
     encryption-key: ZGV2LW9ubHktZW5jcnlwdGlvbi1rZXktMzItYnl0ZXM=
+    # Clave HMAC SOLO de desarrollo/tests. Nunca usarla en producción.
+    hash-key: ZGV2LW9ubHktaG1hYy1rZXktZm9yLXJlY292ZXJ5LWNvZGVz
     session:
       secure-cookie: false
     signing-key:
@@ -51,6 +54,8 @@ cherrycore:
   cors:
     allowed-origins: http://localhost:4200
   oauth:
+    # Apps de desarrollo con redirect http://localhost.
+    allow-insecure-redirect-uris: true
     clients:
       - client-id: test-bff
         client-name: Test BFF

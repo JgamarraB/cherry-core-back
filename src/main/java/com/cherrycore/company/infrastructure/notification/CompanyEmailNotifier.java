@@ -27,6 +27,8 @@ class CompanyEmailNotifier implements CompanyNotifier {
     private static final String APPROVED = "email.company-approved";
     private static final String REJECTED = "email.company-rejected";
     private static final String INVITATION = "email.staff-invitation";
+    private static final String OWNERSHIP = "email.ownership-transferred";
+    private static final String OWNERSHIP_NO_NAME = "email.ownership-transferred-anonymous";
     private static final String TOKEN_PARAM = "token";
     private static final String COMPANIES_PATH = "/companies/";
 
@@ -71,6 +73,15 @@ class CompanyEmailNotifier implements CompanyNotifier {
         publisher.publishEvent(new EmailRequested(INVITATION, invitation.email().value(), locale, branding(company),
                 link, List.of(company.profile().tradeName().value(), roleName,
                         properties.companies().invitationTtl().toDays())));
+    }
+
+    @Override
+    public void ownershipTransferred(Company company, Recipient newOwner, String previousOwnerName) {
+        boolean named = previousOwnerName != null && !previousOwnerName.isBlank();
+        publisher.publishEvent(new EmailRequested(named ? OWNERSHIP : OWNERSHIP_NO_NAME, newOwner.email(),
+                newOwner.locale(), branding(company), properties.frontend().loginUrl().toString(),
+                named ? List.of(company.profile().tradeName().value(), previousOwnerName)
+                        : List.of(company.profile().tradeName().value())));
     }
 
     private EmailBranding branding(Company company) {

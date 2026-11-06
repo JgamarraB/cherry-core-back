@@ -31,6 +31,7 @@ public class BrowserSession {
     private final MockMvc mockMvc;
     private final Map<String, Cookie> cookies = new LinkedHashMap<>();
     private final Map<String, String> headers = new LinkedHashMap<>();
+    private String userAgent = "cherrycore-tests";
 
     public BrowserSession(MockMvc mockMvc) {
         this.mockMvc = mockMvc;
@@ -100,6 +101,18 @@ public class BrowserSession {
         return this;
     }
 
+    /**
+     * Navegador que dice ser (cabecera User-Agent).
+     */
+    public BrowserSession withUserAgent(String value) {
+        userAgent = value;
+        return this;
+    }
+
+    public Cookie cookie(String name) {
+        return cookies.get(name);
+    }
+
     public boolean hasCookie(String name) {
         return cookies.containsKey(name);
     }
@@ -114,7 +127,7 @@ public class BrowserSession {
         if (!cookies.isEmpty()) {
             request.cookie(cookies.values().toArray(Cookie[]::new));
         }
-        request.header(HttpHeaders.USER_AGENT, "cherrycore-tests");
+        request.header(HttpHeaders.USER_AGENT, userAgent);
         headers.forEach(request::header);
         MvcResult result = mockMvc.perform(request).andReturn();
         for (Cookie cookie : result.getResponse().getCookies()) {

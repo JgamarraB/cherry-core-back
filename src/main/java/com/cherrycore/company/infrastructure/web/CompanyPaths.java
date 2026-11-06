@@ -7,11 +7,13 @@ public final class CompanyPaths {
 
     public static final String BASE = "/api/company";
     public static final String ALL = BASE + "/**";
+    public static final String ME = "/me";
     public static final String LOGO = "/logo";
     public static final String MEMBERS = "/members";
     public static final String MEMBER = "/members/{membershipId}";
     public static final String MEMBER_SUSPEND = "/members/{membershipId}/suspend";
     public static final String MEMBER_REACTIVATE = "/members/{membershipId}/reactivate";
+    public static final String MEMBER_TRANSFER_OWNERSHIP = "/members/{membershipId}/transfer-ownership";
     public static final String ROLES = "/roles";
     public static final String ROLE = "/roles/{roleId}";
     public static final String AVAILABLE_PERMISSIONS = "/permissions";

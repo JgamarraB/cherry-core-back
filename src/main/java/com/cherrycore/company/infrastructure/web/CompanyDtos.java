@@ -87,6 +87,11 @@ public final class CompanyDtos {
     }
 
     public record InvitationTokenRequest(@NotBlank @Size(max = AuthDtos.MAX_TOKEN_INPUT) String token) {
+
+        @Override
+        public String toString() {
+            return "InvitationTokenRequest[***]";
+        }
     }
 
     /**

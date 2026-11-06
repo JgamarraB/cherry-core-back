@@ -4,6 +4,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.cherrycore.identity.application.IdentitySettings;
+import com.cherrycore.identity.application.NewDeviceAlertSettings;
 import com.cherrycore.identity.domain.LoginPolicy;
 import com.cherrycore.identity.domain.PasswordPolicy;
 import com.cherrycore.shared.infrastructure.config.CherryCoreProperties;
@@ -26,5 +27,10 @@ public class IdentityConfig {
                 properties.i18n().defaultLocale(),
                 properties.i18n().supportedLocales(),
                 properties.branding().platformName());
+    }
+
+    @Bean
+    NewDeviceAlertSettings newDeviceAlertSettings(CherryCoreProperties properties) {
+        return new NewDeviceAlertSettings(properties.security().newDeviceAlert().enabled());
     }
 }

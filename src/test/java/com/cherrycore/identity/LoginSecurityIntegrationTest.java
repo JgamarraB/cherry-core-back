@@ -93,8 +93,9 @@ class LoginSecurityIntegrationTest {
 
         MvcResult login = browser.login(email, PASSWORD);
         assertThat(login.getResponse().getCookie(SESSION_COOKIE)).isNotNull();
-        assertThat(login.getResponse().getHeader("Set-Cookie"))
-                .startsWith(SESSION_COOKIE + "=")
+        // También llega la cookie del dispositivo: se busca la de sesión entre todas.
+        assertThat(login.getResponse().getHeaders("Set-Cookie").stream()
+                .filter(header -> header.startsWith(SESSION_COOKIE + "=")).findFirst().orElseThrow())
                 .contains("HttpOnly")
                 .contains("SameSite=Lax");
 

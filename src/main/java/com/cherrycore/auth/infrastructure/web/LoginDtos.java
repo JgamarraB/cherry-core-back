@@ -49,10 +49,12 @@ public final class LoginDtos {
     }
 
     /**
+     * @param accountId   cuenta con sesión (para marcar "tú" en listados); null sin sesión
      * @param pendingStep si hay un login a medias: MFA_REQUIRED o MFA_SETUP_REQUIRED
      */
     public record SessionResponse(
             boolean authenticated,
+            UUID accountId,
             String accountType,
             boolean superAdmin,
             UUID activeCompanyId,
@@ -60,7 +62,7 @@ public final class LoginDtos {
     ) {
 
         public static SessionResponse anonymous(LoginStatus pendingStep) {
-            return new SessionResponse(false, null, false, null, pendingStep);
+            return new SessionResponse(false, null, null, false, null, pendingStep);
         }
     }
 }

@@ -10,6 +10,7 @@ public final class AdminPaths {
     public static final String COMPANIES = BASE + "/companies";
     public static final String ACCOUNTS = BASE + "/accounts";
     public static final String APPLICATIONS = BASE + "/applications";
+    public static final String APPLICATION_LOGO = APPLICATIONS + "/{applicationId}/logo";
     public static final String CLIENTS = BASE + "/clients";
     public static final String AUDIT_EVENTS = BASE + "/audit-events";
 

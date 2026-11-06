@@ -1,5 +1,8 @@
 package com.cherrycore.company.application;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
@@ -55,12 +58,38 @@ public class CompanyAccessPolicy {
         return new CompanyContext(company, membership, role);
     }
 
+    /**
+     * Mi rol y mis permisos de CherryCore en la empresa activa.
+     */
+    public MyCompanyAccess myAccess(StaffActor actor) {
+        CompanyContext context = requireMember(actor);
+        List<String> granted = Arrays.stream(CompanyPermission.values())
+                .filter(permission -> context.isOwner()
+                        || context.role().permissionIds().contains(permissionId(permission)))
+                .map(CompanyPermission::code)
+                .toList();
+        return new MyCompanyAccess(context.company().id(), context.membership().id(), context.role().code().value(),
+                context.role().name(), context.isOwner(), granted);
+    }
+
     public CompanyContext require(StaffActor actor, CompanyPermission permission) {
         CompanyContext context = requireMember(actor);
         if (!context.isOwner() && !context.role().permissionIds().contains(permissionId(permission))) {
             throw new DomainException(CompanyErrorCode.COMPANY_PERMISSION_DENIED);
         }
         return context;
+    }
+
+    /**
+     * Quien no es OWNER solo puede dar permisos que él mismo tiene (al asignar
+     * un rol, invitar con un rol o editar los permisos de un rol). Si no,
+     * con "gestionar miembros" o "gestionar roles" podría ascenderse a sí
+     * mismo o a otra cuenta suya (p. ej. a ADMIN, o con permisos de otras apps).
+     */
+    public void requireCanGrant(CompanyContext context, Collection<UUID> permissionIds) {
+        if (!context.isOwner() && !context.role().permissionIds().containsAll(permissionIds)) {
+            throw new DomainException(CompanyErrorCode.ROLE_ABOVE_OWN_PERMISSIONS);
+        }
     }
 
     private UUID permissionId(CompanyPermission permission) {

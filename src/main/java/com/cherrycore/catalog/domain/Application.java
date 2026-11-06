@@ -15,12 +15,28 @@ public class Application {
     private final ApplicationCode code;
     private String name;
     private ApplicationStatus status;
+    private String logoKey;
 
     public Application(UUID id, ApplicationCode code, String name, ApplicationStatus status) {
+        this(id, code, name, status, null);
+    }
+
+    /**
+     * @param logoKey ruta del logo en el almacenamiento, o {@code null}
+     */
+    public Application(UUID id, ApplicationCode code, String name, ApplicationStatus status, String logoKey) {
         this.id = Objects.requireNonNull(id);
         this.code = Objects.requireNonNull(code);
         this.name = Objects.requireNonNull(name);
         this.status = Objects.requireNonNull(status);
+        this.logoKey = logoKey;
+    }
+
+    /**
+     * @param newLogoKey ruta del logo nuevo, o {@code null} para quitarlo
+     */
+    public void changeLogo(String newLogoKey) {
+        logoKey = newLogoKey;
     }
 
     public void rename(String newName) {
@@ -53,5 +69,9 @@ public class Application {
 
     public ApplicationStatus status() {
         return status;
+    }
+
+    public String logoKey() {
+        return logoKey;
     }
 }

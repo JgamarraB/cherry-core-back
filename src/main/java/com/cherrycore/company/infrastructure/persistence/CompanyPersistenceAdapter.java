@@ -3,7 +3,6 @@ package com.cherrycore.company.infrastructure.persistence;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,6 +25,7 @@ import com.cherrycore.shared.application.PageQuery;
 import com.cherrycore.shared.application.PageResult;
 import com.cherrycore.shared.domain.value.CountryCode;
 import com.cherrycore.shared.domain.value.PhoneNumber;
+import com.cherrycore.shared.infrastructure.persistence.LikePatterns;
 
 import jakarta.persistence.criteria.Predicate;
 
@@ -37,7 +37,6 @@ class CompanyPersistenceAdapter implements CompanyRepository, CompanyApplication
     private static final String LEGAL_NAME = "legalName";
     private static final String TRADE_NAME = "tradeName";
     private static final String TAX_ID = "taxId";
-    private static final String LIKE = "%";
 
     private final CompanyJpaRepository companies;
     private final CompanyApplicationJpaRepository companyApplications;
@@ -62,6 +61,11 @@ class CompanyPersistenceAdapter implements CompanyRepository, CompanyApplication
         return excludingCompanyId == null
                 ? companies.existsByCountryCodeAndTaxId(country.value(), taxId.value())
                 : companies.existsByCountryCodeAndTaxIdAndIdNot(country.value(), taxId.value(), excludingCompanyId);
+    }
+
+    @Override
+    public void lockForUpdate(UUID companyId) {
+        companies.findWithLockById(companyId);
     }
 
     @Override
@@ -90,11 +94,11 @@ class CompanyPersistenceAdapter implements CompanyRepository, CompanyApplication
                 predicates.add(builder.equal(root.get(STATUS), status));
             }
             if (search != null) {
-                String pattern = LIKE + search.toLowerCase(Locale.ROOT) + LIKE;
+                String pattern = LikePatterns.containingLowercase(search);
                 predicates.add(builder.or(
-                        builder.like(builder.lower(root.get(LEGAL_NAME)), pattern),
-                        builder.like(builder.lower(root.get(TRADE_NAME)), pattern),
-                        builder.like(builder.lower(root.get(TAX_ID)), pattern)));
+                        builder.like(builder.lower(root.get(LEGAL_NAME)), pattern, LikePatterns.ESCAPE),
+                        builder.like(builder.lower(root.get(TRADE_NAME)), pattern, LikePatterns.ESCAPE),
+                        builder.like(builder.lower(root.get(TAX_ID)), pattern, LikePatterns.ESCAPE)));
             }
             return builder.and(predicates.toArray(Predicate[]::new));
         };

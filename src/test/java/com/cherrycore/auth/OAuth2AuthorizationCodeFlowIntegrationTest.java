@@ -33,7 +33,7 @@ class OAuth2AuthorizationCodeFlowIntegrationTest {
 
     private static final String BFF_REDIRECT = "http://localhost:8081/login/oauth2/code/cherrycore";
     private static final String STAFF_REDIRECT = "http://localhost:8082/login/oauth2/code/cherrycore";
-    private static final String LOGIN_PAGE = "http://localhost:4200/login";
+    private static final String LOGIN_PAGE = "http://localhost:4200/login?client_id=test-bff";
     private static final String SCOPES = "openid profile email";
 
     @Autowired

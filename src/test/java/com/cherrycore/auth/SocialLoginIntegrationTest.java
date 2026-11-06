@@ -118,6 +118,32 @@ class SocialLoginIntegrationTest {
                 .isInstanceOf(SocialLoginResult.SignedIn.class);
     }
 
+    /*
+     * Una cuenta de Google creada con un email que no es de Gmail ni de Google
+     * Workspace (p. ej. el de un antiguo empleado) dice email_verified=true,
+     * pero Google no garantiza que ese email sea HOY de esa persona: no debe
+     * entrar en la cuenta de CherryCore con ese email (ni crear una).
+     */
+    @Test
+    void googleAccountsThatDoNotOwnTheEmailDomainCannotTakeOverAnAccount() throws Exception {
+        String email = CustomerFixtures.registerVerified(new BrowserSession(mockMvc), mailbox);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        successHandler.onAuthenticationSuccess(request, response,
+                googleToken("g-" + UUID.randomUUID(), email, true, null));
+
+        assertThat(response.getRedirectedUrl())
+                .isEqualTo("http://localhost:4200/login?error=SOCIAL_EMAIL_NOT_VERIFIED");
+        assertThat(request.getSession().getAttribute("SPRING_SECURITY_CONTEXT")).isNull();
+
+        // Con Gmail sí es la autoridad del email (no hace falta el claim "hd").
+        MockHttpServletResponse gmail = new MockHttpServletResponse();
+        successHandler.onAuthenticationSuccess(new MockHttpServletRequest(), gmail,
+                googleToken("g-" + UUID.randomUUID(), "nuevo-" + UUID.randomUUID() + "@gmail.com", true, null));
+        assertThat(gmail.getRedirectedUrl()).isEqualTo("http://localhost:4200/register/complete");
+    }
+
     @Test
     void staffAccountsAreNeverCreatedBySocialLoginAndStillNeedMfa() throws Exception {
         assertThatThrownBy(() -> socialLogin.signIn(profile("g-" + UUID.randomUUID(),
@@ -179,10 +205,24 @@ class SocialLoginIntegrationTest {
         return new SocialProfile(SocialProvider.GOOGLE, subject, email, verified, "Ana", "Pérez");
     }
 
+    /** Cuenta de Google Workspace del dominio del email (Google es la autoridad de ese email). */
     private static OAuth2AuthenticationToken googleToken(String subject, String email, boolean verified) {
-        DefaultOAuth2User user = new DefaultOAuth2User(List.of(new SimpleGrantedAuthority("OAUTH2_USER")),
-                Map.of("sub", subject, "email", email, "email_verified", verified, "given_name", "Ana",
-                        "family_name", "Pérez"), "sub");
+        return googleToken(subject, email, verified, email.substring(email.indexOf('@') + 1));
+    }
+
+    /**
+     * @param hostedDomain claim "hd" (dominio de Google Workspace), o {@code null} para una cuenta de
+     *                     Google normal creada con ese email
+     */
+    private static OAuth2AuthenticationToken googleToken(String subject, String email, boolean verified,
+            String hostedDomain) {
+        Map<String, Object> claims = new java.util.HashMap<>(Map.of("sub", subject, "email", email,
+                "email_verified", verified, "given_name", "Ana", "family_name", "Pérez"));
+        if (hostedDomain != null) {
+            claims.put("hd", hostedDomain);
+        }
+        DefaultOAuth2User user = new DefaultOAuth2User(List.of(new SimpleGrantedAuthority("OAUTH2_USER")), claims,
+                "sub");
         return new OAuth2AuthenticationToken(user, user.getAuthorities(), "google");
     }
 }

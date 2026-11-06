@@ -17,6 +17,7 @@ import org.springframework.security.oauth2.server.authorization.settings.TokenSe
 import org.springframework.stereotype.Component;
 
 import com.cherrycore.auth.infrastructure.ClientSettingNames;
+import com.cherrycore.company.domain.CompanyPermission;
 import com.cherrycore.shared.domain.error.DomainException;
 import com.cherrycore.shared.infrastructure.config.CherryCoreProperties;
 import com.cherrycore.shared.infrastructure.config.CherryCoreProperties.ClientAudience;
@@ -56,10 +57,19 @@ public class RegisteredClientFactory {
         if (definition.clientId() == null || !CLIENT_ID.matcher(definition.clientId()).matches()) {
             throw new DomainException(ClientErrorCode.INVALID_CLIENT_ID);
         }
-        definition.redirectUris().forEach(RegisteredClientFactory::validateUri);
-        definition.postLogoutRedirectUris().forEach(RegisteredClientFactory::validateUri);
+        definition.redirectUris().forEach(this::validateUri);
+        definition.postLogoutRedirectUris().forEach(this::validateUri);
         if (!ALLOWED_USER_SCOPES.containsAll(definition.scopes())) {
             throw new DomainException(ClientErrorCode.INVALID_SCOPE);
+        }
+        /*
+         * La app "cherrycore" es la propia gestión de empresas: un cliente
+         * enlazado a ella recibiría esos permisos en sus tokens y, con acceso
+         * de máquina, podría retirarlos del catálogo (y romper la gestión de
+         * todas las empresas).
+         */
+        if (CompanyPermission.APPLICATION_CODE.equals(definition.applicationCode())) {
+            throw new DomainException(ClientErrorCode.RESERVED_APPLICATION);
         }
         boolean needsApplication = definition.audience() == ClientAudience.STAFF || definition.machineAccess();
         if (needsApplication && (definition.applicationCode() == null || definition.applicationCode().isBlank())) {
@@ -124,12 +134,19 @@ public class RegisteredClientFactory {
                 .build();
     }
 
-    private static void validateUri(String raw) {
+    /*
+     * Siempre https con host. http solo para localhost y solo si se permite
+     * (cherrycore.oauth.allow-insecure-redirect-uris: desarrollo y tests).
+     */
+    private void validateUri(String raw) {
         try {
             URI uri = URI.create(raw);
             String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
-            boolean secure = HTTPS.equals(scheme) || (HTTP.equals(scheme) && LOCAL_HOSTS.contains(uri.getHost()));
-            if (!uri.isAbsolute() || !secure || uri.getFragment() != null || raw.contains(WILDCARD)) {
+            boolean localHttp = properties.oauth().allowInsecureRedirectUris() && HTTP.equals(scheme)
+                    && LOCAL_HOSTS.contains(uri.getHost());
+            boolean secure = (HTTPS.equals(scheme) && uri.getHost() != null) || localHttp;
+            if (!uri.isAbsolute() || !secure || uri.getFragment() != null || uri.getUserInfo() != null
+                    || raw.contains(WILDCARD)) {
                 throw new DomainException(ClientErrorCode.INVALID_REDIRECT_URI);
             }
         } catch (IllegalArgumentException malformed) {

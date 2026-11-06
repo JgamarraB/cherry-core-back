@@ -116,7 +116,8 @@ public class LoginController {
         boolean superAdmin = authentication.getAuthorities().stream()
                 .anyMatch(authority -> (AccountAuthorities.ROLE_PREFIX + AccountAuthorities.SUPER_ADMIN)
                         .equals(authority.getAuthority()));
-        return ApiSuccessResponse.of(new SessionResponse(true, accountType, superAdmin,
+        return ApiSuccessResponse.of(new SessionResponse(true, CurrentAccount.id().orElseThrow(), accountType,
+                superAdmin,
                 CurrentAccount.activeCompanyId().orElse(null), null));
     }
 

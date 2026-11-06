@@ -8,6 +8,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +34,7 @@ import com.cherrycore.support.CustomerFixtures;
 import com.cherrycore.support.IntegrationTest;
 import com.cherrycore.support.JsonBodies;
 import com.cherrycore.support.StaffFixtures;
+import com.cherrycore.support.TotpCodes;
 
 @IntegrationTest
 class AdminApiIntegrationTest {
@@ -53,12 +59,13 @@ class AdminApiIntegrationTest {
 
     private BrowserSession admin;
     private String adminEmail;
+    private String adminTotpSecret;
 
     @BeforeEach
     void setUp() throws Exception {
         adminEmail = StaffFixtures.createSuperAdmin(accounts, hasher, staffUsers);
         admin = new BrowserSession(mockMvc);
-        StaffFixtures.firstLoginWithMfaSetup(admin, adminEmail);
+        adminTotpSecret = StaffFixtures.firstLoginWithMfaSetup(admin, adminEmail);
     }
 
     @Test
@@ -163,6 +170,104 @@ class AdminApiIntegrationTest {
         assertThat(tokenRequest(clientId, newSecret).getResponse().getStatus()).isEqualTo(200);
     }
 
+    /*
+     * La app "cherrycore" es la gestión de empresas: un cliente enlazado a ella
+     * con acceso de máquina podría retirar sus permisos del catálogo (y romper
+     * la gestión de todas las empresas); uno de backoffice los llevaría en sus tokens.
+     */
+    @Test
+    void clientsCannotBeBoundToTheReservedCherryCoreApplication() throws Exception {
+        MvcResult attempt = admin.call(HttpMethod.POST, "/api/admin/clients", clientBody(
+                "evil-" + UUID.randomUUID().toString().substring(0, 8), "cherrycore",
+                "https://evil.example.com/login/oauth2/code/cherrycore"));
+
+        assertThat(attempt.getResponse().getStatus()).isEqualTo(400);
+        assertThat(JsonBodies.<String>read(attempt, "$.error.code")).isEqualTo("RESERVED_APPLICATION");
+    }
+
+    /*
+     * El panel no deja quitar el último superadmin, pero "borrar mi cuenta" sí
+     * lo dejaba: la plataforma se quedaba sin nadie que aprobara empresas.
+     */
+    @Test
+    void lastSuperAdminCannotDeleteTheirOwnAccount() throws Exception {
+        UUID myId = StaffFixtures.accountIdOf(admin);
+        accounts.findSuperAdmins().stream()
+                .filter(other -> !other.id().equals(myId))
+                .forEach(other -> {
+                    other.revokePlatformRole();
+                    accounts.save(other);
+                });
+
+        MvcResult attempt = admin.call(HttpMethod.POST, "/api/account/delete",
+                "{\"currentPassword\": \"" + StaffFixtures.PASSWORD + "\", \"mfaCode\": \""
+                        + TotpCodes.code(adminTotpSecret, 1) + "\"}");
+
+        assertThat(JsonBodies.<String>read(attempt, "$.error.code")).isEqualTo("LAST_SUPER_ADMIN");
+        assertThat(admin.get("/api/account").getResponse().getStatus()).isEqualTo(200);
+    }
+
+    /*
+     * "%" y "_" son comodines de LIKE: buscar "%" devolvía todas las cuentas y
+     * "_" cualquier carácter. Se buscan como texto.
+     */
+    @Test
+    void searchTreatsLikeWildcardsAsText() throws Exception {
+        CustomerFixtures.registerVerified(new BrowserSession(mockMvc), mailbox);
+        MvcResult percent = admin.get("http://localhost/api/admin/accounts?search=%25", MediaType.APPLICATION_JSON);
+        assertThat(JsonBodies.<List<Object>>read(percent, "$.data.items")).isEmpty();
+        MvcResult underscore = admin.get("http://localhost/api/admin/accounts?search=_", MediaType.APPLICATION_JSON);
+        assertThat(JsonBodies.<List<Object>>read(underscore, "$.data.items")).isEmpty();
+
+        StaffFixtures.registerCompany(new BrowserSession(mockMvc), mailbox, "Pack_Ocho");
+        List<String> names = JsonBodies.read(admin.get("/api/admin/companies?search=k_O"),
+                "$.data.items[*].tradeName");
+        assertThat(names).containsOnly("Pack_Ocho");
+        MvcResult anyCompany = admin.get("http://localhost/api/admin/companies?search=%25",
+                MediaType.APPLICATION_JSON);
+        assertThat(JsonBodies.<List<Object>>read(anyCompany, "$.data.items")).isEmpty();
+    }
+
+    /*
+     * Dos superadmins (los únicos) se desactivan el uno al otro a la vez: sin
+     * bloqueo, los dos ven "queda otro" y la plataforma se queda sin ninguno.
+     */
+    @Test
+    void twoLastSuperAdminsDisablingEachOtherAtOnceLeaveOne() throws Exception {
+        String otherEmail = StaffFixtures.createSuperAdmin(accounts, hasher, staffUsers);
+        BrowserSession other = new BrowserSession(mockMvc);
+        StaffFixtures.firstLoginWithMfaSetup(other, otherEmail);
+        UUID myId = StaffFixtures.accountIdOf(admin);
+        UUID otherId = StaffFixtures.accountIdOf(other);
+        accounts.findSuperAdmins().stream()
+                .filter(account -> !account.id().equals(myId) && !account.id().equals(otherId))
+                .forEach(account -> {
+                    account.revokePlatformRole();
+                    accounts.save(account);
+                });
+
+        CyclicBarrier start = new CyclicBarrier(2);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<Integer> one = pool.submit(() -> {
+                start.await();
+                return admin.call(HttpMethod.POST, "/api/admin/accounts/" + otherId + "/disable", null)
+                        .getResponse().getStatus();
+            });
+            Future<Integer> two = pool.submit(() -> {
+                start.await();
+                return other.call(HttpMethod.POST, "/api/admin/accounts/" + myId + "/disable", null)
+                        .getResponse().getStatus();
+            });
+            assertThat(List.of(one.get(30, TimeUnit.SECONDS), two.get(30, TimeUnit.SECONDS))).contains(200);
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(accounts.findSuperAdmins().stream().filter(account -> account.isActive()).count())
+                .isEqualTo(1);
+    }
+
     @Test
     void userTokensCannotSyncPermissions() throws Exception {
         MvcResult attempt = mockMvc.perform(put("/api/apps/permissions")
@@ -181,6 +286,32 @@ class AdminApiIntegrationTest {
         assertThat(JsonBodies.<List<String>>read(events, "$.data.items[*].type")).isNotEmpty()
                 .allMatch("EMAIL_VERIFIED"::equals);
         assertThat(JsonBodies.<Integer>read(events, "$.data.size")).isEqualTo(5);
+    }
+
+    @Test
+    void auditEventsCarryTheirContext() throws Exception {
+        String email = CustomerFixtures.registerVerified(new BrowserSession(mockMvc), mailbox);
+        String accountId = JsonBodies.<List<String>>read(admin.get("/api/admin/accounts?search=" + email),
+                "$.data.items[*].id").getFirst();
+        admin.call(HttpMethod.POST, "/api/admin/accounts/" + accountId + "/disable", null);
+
+        MvcResult disabled = admin.get("/api/admin/audit-events?type=ACCOUNT_DISABLED_BY_ADMIN&accountId="
+                + accountId);
+        assertThat(JsonBodies.<String>read(disabled, "$.data.items[0].actorEmail")).isEqualTo(adminEmail);
+        assertThat(JsonBodies.<String>read(disabled, "$.data.items[0].details.actorAccountId")).isNotBlank();
+
+        StaffFixtures.registerCompany(new BrowserSession(mockMvc), mailbox, "Contexto SL");
+        String pendingId = JsonBodies.<List<String>>read(
+                admin.get("/api/admin/companies?status=PENDING_APPROVAL&search=contexto"), "$.data.items[*].id")
+                .getFirst();
+        admin.call(HttpMethod.POST, "/api/admin/companies/" + pendingId + "/approve", null);
+
+        MvcResult approved = admin.get("/api/admin/audit-events?type=COMPANY_APPROVED&size=100");
+        List<String> names = JsonBodies.read(approved, "$.data.items[*].details.companyName");
+        assertThat(names).contains("Contexto SL");
+        List<String> ids = JsonBodies.read(approved, "$.data.items[?(@.details.companyName == 'Contexto SL')]"
+                + ".details.companyId");
+        assertThat(ids).containsExactly(pendingId);
     }
 
     private static String clientBody(String clientId, String appCode, String redirectUri) {

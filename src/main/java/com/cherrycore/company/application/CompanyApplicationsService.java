@@ -14,10 +14,14 @@ import com.cherrycore.catalog.application.CatalogService;
 import com.cherrycore.catalog.domain.Application;
 import com.cherrycore.company.application.port.CompanyApplicationRepository;
 import com.cherrycore.company.application.port.CompanyRepository;
+import com.cherrycore.company.domain.Company;
 import com.cherrycore.company.domain.CompanyApplication;
 import com.cherrycore.company.domain.CompanyApplicationStatus;
 import com.cherrycore.company.domain.CompanyErrorCode;
 import com.cherrycore.company.domain.CompanyPermission;
+import com.cherrycore.identity.application.RequestContext;
+import com.cherrycore.identity.domain.AuditDetail;
+import com.cherrycore.identity.domain.AuthEventType;
 import com.cherrycore.shared.domain.error.DomainException;
 import com.cherrycore.shared.domain.id.UuidV7;
 
@@ -32,14 +36,16 @@ public class CompanyApplicationsService {
     private final CompanyApplicationRepository companyApplications;
     private final CompanyRepository companies;
     private final CatalogService catalog;
+    private final CompanyAudit audit;
     private final Clock clock;
 
     public CompanyApplicationsService(CompanyAccessPolicy access, CompanyApplicationRepository companyApplications,
-            CompanyRepository companies, CatalogService catalog, Clock clock) {
+            CompanyRepository companies, CatalogService catalog, CompanyAudit audit, Clock clock) {
         this.access = access;
         this.companyApplications = companyApplications;
         this.companies = companies;
         this.catalog = catalog;
+        this.audit = audit;
         this.clock = clock;
     }
 
@@ -66,8 +72,10 @@ public class CompanyApplicationsService {
     }
 
     @Transactional
-    public List<CompanyApplicationView> setEnabled(UUID companyId, UUID applicationId, boolean enabled) {
-        companies.findById(companyId).orElseThrow(() -> new DomainException(CompanyErrorCode.COMPANY_NOT_FOUND));
+    public List<CompanyApplicationView> setEnabled(UUID adminId, UUID companyId, UUID applicationId, boolean enabled,
+            RequestContext request) {
+        Company company = companies.findById(companyId)
+                .orElseThrow(() -> new DomainException(CompanyErrorCode.COMPANY_NOT_FOUND));
         Application application = catalog.get(applicationId);
         if (CompanyPermission.APPLICATION_CODE.equals(application.code().value()) && !enabled) {
             // CherryCore (gestión de la empresa) no se puede desactivar.
@@ -82,6 +90,12 @@ public class CompanyApplicationsService {
             companyApplication.disable();
         }
         companyApplications.save(companyApplication);
+        AuthEventType event = enabled
+                ? AuthEventType.COMPANY_APPLICATION_ENABLED
+                : AuthEventType.COMPANY_APPLICATION_DISABLED;
+        audit.event(event, adminId, company)
+                .detail(AuditDetail.APPLICATION_CODE, application.code().value())
+                .log(request);
         return allFor(companyId);
     }
 

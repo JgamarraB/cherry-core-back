@@ -11,7 +11,10 @@ public enum CatalogErrorCode implements ErrorCode {
     APPLICATION_CODE_TAKEN(ErrorCategory.CONFLICT, "Application code already exists"),
     APPLICATION_DISABLED(ErrorCategory.BUSINESS_RULE, "Application is disabled"),
     UNKNOWN_PERMISSION(ErrorCategory.INVALID_INPUT, "Permission does not exist"),
-    TOO_MANY_PERMISSIONS(ErrorCategory.INVALID_INPUT, "Too many permissions in one request");
+    TOO_MANY_PERMISSIONS(ErrorCategory.INVALID_INPUT, "Too many permissions in one request"),
+    // Mismos códigos que el logo de empresa: el frontend usa la misma traducción.
+    LOGO_INVALID_FORMAT(ErrorCategory.INVALID_INPUT, "Logo must be a PNG, JPEG or WEBP image"),
+    LOGO_TOO_LARGE(ErrorCategory.INVALID_INPUT, "Logo file is too large");
 
     private final ErrorCategory category;
     private final String description;
